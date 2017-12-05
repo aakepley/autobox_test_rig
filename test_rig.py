@@ -97,6 +97,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
     # Date          Programmer              Description of Code
     # ----------------------------------------------------------------------
     # 10/26/2017    A.A. Kepley             Original Code
+    # 11/29/2017    A.A. Kepley             Fixing aggregate continuum.
 
     import os.path
     import re
@@ -109,10 +110,14 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         .*                 ## skip junk in command
         vis=(?P<vis>\[.*?\]) ## visibility name
         .*                 ## skip junk in command
-        imagename='(?P<imagename>.*?)' ## imagename 
+        imagename='(?P<imagename>.*?)' ## imagename
+        .*
+        deconvolver='(?P<deconvolver>.*?)' ## deconvolver
         .*\) ## end of tclean command
         ) 
         """,re.VERBOSE)
+
+        ntermsRE = re.compile("nterms=(?P<nterms>.*?),")
 
         filein = open(casalogfile,'r')
         fileout = open(outfile,'w')
@@ -132,7 +137,8 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                 cmd = findtclean.group('cmd')
                 vis = findtclean.group('vis')
                 imagename = findtclean.group('imagename')
-                
+                deconvolver = findtclean.group('deconvolver')
+
                 # update the data directory in the command for the new data location
                 newvis = [dataDir+'/'+val for val in ast.literal_eval(vis)]                
                 newcmd = cmd.replace(vis,repr(newvis))
@@ -142,9 +148,40 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
 
                 # follow the iter0 with commands to copy iter0 to iter1
                 if re.search('iter0',imagename):
-                    for ext in imageExt:
-                        fileout.write("os.system('cp -ir "+imagename+ext+' '+ imagename.replace('iter0','iter1')+ext+"')\n")
-                        fileout.write('\n')
+
+                    # dealing with the mtmfs case.
+                    if deconvolver == 'mtmfs':
+
+                        nterms = ntermsRE.search(line).group('nterms')
+
+                        for ext in imageExt:
+                            if ext == '.pb':
+                                fileout.write("os.system('cp -ir "+imagename+ext+'.tt0'+' '+ imagename.replace('iter0','iter1')+ext+'.tt0'+"')\n")
+                            if ext == '.psf':
+                                for term in range(int(nterms)+1):
+                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+
+                            if ext == '.residual':
+                                for term in range(int(nterms)):
+                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+
+                            if ext == '.sumwt':
+                                for term in range(int(nterms)+1):
+                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+
+                            if ext == '.weight':
+                                for term in range(int(nterms)+1):
+                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+                        
+
+
+                    # dealing with the rest of the caes.            
+                    else:
+                        for ext in imageExt:
+                            fileout.write("os.system('cp -ir "+imagename+ext+' '+ imagename.replace('iter0','iter1')+ext+"')\n")
+
+
+                    fileout.write('\n')
     
         filein.close()
         fileout.close()
@@ -265,6 +302,7 @@ def tCleanTime(testDir):
             return 
         else:
             mylog = logfile[0]
+            print "using log: ", mylog
 
         # regex patterns for below.
         tcleanBeginRE = re.compile(r"Begin Task: tclean")
@@ -281,19 +319,20 @@ def tCleanTime(testDir):
         endNegativeThresholdRE = re.compile(r'No negative region was found by auotmask.')
         endCleanRE = re.compile(r'Reached global stopping criterion : (?P<stopreason>.*)')
         tcleanEndRE = re.compile(r"End Task: tclean")
+        tcleanFailRE = re.compile(r"An error occurred running task tclean.") ## catch artifact of running in batch mode.
 
         dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 
         # open file
         filein = open(mylog,'r')
 
-        initialize loop status        
-                imagename = ''
-                allresults = {}
-                results = {}
-                cycleresults = {}
-                cycle = '0'
-                specmode=''
+        #initialize loop status        
+        imagename = ''
+        allresults = {}
+        results = {}
+        cycleresults = {}
+        cycle = '0'
+        specmode=''
         
         # go through file
         for line in filein:
@@ -423,15 +462,17 @@ def tCleanTime(testDir):
 
                     if cycleresults.has_key('startNegativeThresholdTime'):
                         cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
-
-                    results['stopreason'] = endCleanRE.search(line).group('stopreason')
+                    
+                    # get exit criteria
+                    if endCleanRE.search(line):
+                        results['stopreason'] = endCleanRE.search(line).group('stopreason')
 
                     ## save major cycle information here
                     results[cycle] = cycleresults
                     cycleresults={}
 
                 # capture the end of the clean
-                if tcleanEndRE.search(line):
+                if tcleanEndRE.search(line) or tcleanFailRE.search(line):
                     endTimeStr = dateFmtRE.search(line)
                     if endTimeStr:
                         results['endTime'] = datetime.strptime(endTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
@@ -462,6 +503,90 @@ def tCleanTime(testDir):
         
 #----------------------------------------------------------------------
 
+def flattenTimingData(inDict):
+    '''
+    flatten the array of dictionaries so that I can more easily plot
+    things. I'm assuming that it's a dictionary of dictionaries with
+    the top level dictionary being the project. I could also
+    potentially turn into an astropy table here.
+
+    I'm also thinking of turning the images into seconds, but could do
+    that earlier in the extract timing data. The latter is more effective.
+
+    '''
+
+    import numpy as np
+
+    flatDict = {'project': [],
+                'imagename': [],
+                'ncycle': [],
+                'stopreason': [],
+                'startTime': [],
+                'cycle': [],
+                'specmode': [],
+                'tcleanTime': [],
+                'endTime': [],
+                'startMinorCycleTime': [],
+                'cycleTime': [],
+                'startPrune2Time': [],
+                'startGrowTime': [],
+                'totalMaskTime': [],
+                'startPrune1Time': [],
+                'endMajorCycleTime': [],
+                'prune2Time': [],
+                'thresholdTime': [],
+                'startMajorCycleTime': [],
+                'prune1Time': [],
+                'maskStartTime': [],
+                'growTime': [],
+                'endCleanTime': [],
+                'startNegativeThresholdTime': [],
+                'endNegativeThresholdTime': [],
+                'negativeThresholdTime': []}
+    
+    durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime']
+    timeKeys = ['startPrune2Time','startGrowTime']
+    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime']
+
+
+    for (project,images) in inDict.iteritems():
+        for (image,data) in images.iteritems():
+            for cycle in map(str,range(0,int(data['ncycle'])+1)):
+
+                flatDict['project'].append(project)
+                flatDict['imagename'].append(image)
+                flatDict['cycle'].append(cycle)
+
+                # Get the base info from the top level of the data structure
+                flatDict['ncycle'].append(data['ncycle'])
+                flatDict['stopreason'].append(data['stopreason'])
+                flatDict['startTime'].append(data['startTime'])
+                flatDict['specmode'].append(data['specmode'])
+                flatDict['tcleanTime'].append(data['tcleanTime'].seconds)
+                flatDict['endTime'].append(data['endTime'])
+
+                # doing something a little bit fancy.
+                for akey in cycleKeys:
+                    if data[cycle].has_key(akey):
+                        if akey in durationKeys:
+                            flatDict[akey].append(data[cycle][akey].seconds)
+                        else:
+                            flatDict[akey].append(data[cycle][akey])
+                    else:
+                        print "Key", akey, " not in cycle. Inserting blank value"
+                        flatDict[akey].append(999)
+
+    # now I need to turn everything into numpy arrays so that they work in matplotlib.
+    for akey in flatDict.keys():
+        tmp = np.array(flatDict[akey])
+        flatDict[akey] = np.ma.array(tmp, mask=(tmp == 999))
+
+    
+
+    return flatDict
+
+#----------------------------------------------------------------------
+
 def createBatchScript(testDir, casaPath):
     '''
     generate a pipeline batch script quickly to send jobs to nodes
@@ -486,7 +611,7 @@ def createBatchScript(testDir, casaPath):
 
                 outline = "cd " +projectDir + \
                           "; export PATH="+os.path.join(casaPath, "bin") + ":${PATH}" + \
-                          "; casa --nogui -c " + script +"\n"
+                          "; xvfb-run -d casa --nogui -c " + script +"\n"
                 f.write(outline)
         f.close()
 
