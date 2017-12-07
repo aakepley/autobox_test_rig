@@ -288,6 +288,7 @@ def tCleanTime(testDir):
     import re
     from datetime import datetime
     import copy
+    import pdb
 
     if os.path.exists(testDir):
     
@@ -319,7 +320,8 @@ def tCleanTime(testDir):
         endNegativeThresholdRE = re.compile(r'No negative region was found by auotmask.')
         endCleanRE = re.compile(r'Reached global stopping criterion : (?P<stopreason>.*)')
         tcleanEndRE = re.compile(r"End Task: tclean")
-        tcleanFailRE = re.compile(r"An error occurred running task tclean.") ## catch artifact of running in batch mode.
+        #tcleanFailRE = re.compile(r"An error occurred running task tclean.") ## catch artifact of running in batch mode.
+        tcleanFailRE = re.compile(r'Exception from task_tclean : couldn\'t connect to display ":0"') ## catch artifact of running batch mode without xbuffer
 
         dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 
@@ -336,6 +338,7 @@ def tCleanTime(testDir):
         
         # go through file
         for line in filein:
+            #print line
 
             # capture start of tclean
             if tcleanBeginRE.search(line):
@@ -481,16 +484,19 @@ def tCleanTime(testDir):
                     results['tcleanTime'] = results['endTime']-results['startTime']
                     results['ncycle'] = cycle
                     results['specmode'] = specmode
+
                     
                     # if iter1 image, save results and clear variables.
                     if re.search('iter1',imagename):
-
                         allresults[imagename] = results
-                        results = {} 
-                        cycleresults = {}
-                        imagename = ''
-                        cycle = '0'
-                        specmode=''
+                        #pdb.set_trace()
+
+                    # clear for next clean run
+                    results = {} 
+                    cycleresults = {}
+                    imagename = ''
+                    cycle = '0'
+                    specmode=''
 
         filein.close()
 
@@ -630,8 +636,8 @@ def createBatchScript(testDir, casaPath):
 
 
 #casa --nologger --log2term
-#from taskinit import *
-#ia = iatool()
+from taskinit import *
+ia = iatool()
     
 def maskComparison(baseDir, testDir, outFile):
 
@@ -657,6 +663,7 @@ def maskComparison(baseDir, testDir, outFile):
     import os.path
     import re
     import glob
+    import csv
 
 
     projectRE = re.compile("\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
