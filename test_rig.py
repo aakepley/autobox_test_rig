@@ -552,7 +552,7 @@ def flattenTimingData(inDict):
     
     durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime']
     timeKeys = ['startPrune2Time','startGrowTime']
-    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime']
+    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime']
 
 
     for (project,images) in inDict.iteritems():
@@ -568,18 +568,18 @@ def flattenTimingData(inDict):
                 flatDict['stopreason'].append(data['stopreason'])
                 flatDict['startTime'].append(data['startTime'])
                 flatDict['specmode'].append(data['specmode'])
-                flatDict['tcleanTime'].append(data['tcleanTime'].seconds)
+                flatDict['tcleanTime'].append(float(data['tcleanTime'].seconds))
                 flatDict['endTime'].append(data['endTime'])
 
                 # doing something a little bit fancy.
                 for akey in cycleKeys:
                     if data[cycle].has_key(akey):
                         if akey in durationKeys:
-                            flatDict[akey].append(data[cycle][akey].seconds)
+                            flatDict[akey].append(float(data[cycle][akey].seconds))
                         else:
                             flatDict[akey].append(data[cycle][akey])
                     else:
-                        print "Key", akey, " not in cycle. Inserting blank value"
+                        #print "Key", akey, " not in cycle. Inserting blank value"
                         flatDict[akey].append(999)
 
     # now I need to turn everything into numpy arrays so that they work in matplotlib.
@@ -636,8 +636,8 @@ def createBatchScript(testDir, casaPath):
 
 
 #casa --nologger --log2term
-from taskinit import *
-ia = iatool()
+#from taskinit import *
+#ia = iatool()
     
 def maskComparison(baseDir, testDir, outFile):
 
@@ -651,106 +651,97 @@ def maskComparison(baseDir, testDir, outFile):
     #       outFile: text file for results
     #
     # Output:
-    #       text file with results as well as results object
+    #       text file with results 
     #
     # TO DO:
     #    -- check that this works for nterms>2 images
     #
     # Date              Programmer              Description of Changes
     #----------------------------------------------------------------------
+    # 11/16/2017?       A.A. Kepley             Original Code
+    # 12/08/2017        A.A. Kepley             Modified original code to extract more stats
 
     import os
     import os.path
     import re
     import glob
     import csv
-
+    import numpy as np
+    import pdb
 
     projectRE = re.compile("\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
  
-    result = {}
-    aresult = {}
-    projectresult = {}
-
     if os.path.exists(baseDir):
 
-        fout = open(outFile,'w')
-
         dataDirs = os.listdir(baseDir)
+        
+        with open(outFile,'w') as csvfile:
+            writer = csv.writer(csvfile,delimiter=',')
 
-        fout.write("# Base: "+baseDir)
-        fout.write("# Test: "+testDir)
-        fout.write("# Project         Mask                    Number of Pixels Different            Fraction of Pixels Different\n")
-        fout.write("#-----------------------------------------------------------------------------------------------------------\n")
+            writer.writerow(["# Base: "+baseDir])
+            writer.writerow(["# Test: "+testDir])
+            writer.writerow(["Project","Mask","nPixMaskBase","nPixMaskTest","nPixDiff","nPixDiffBase","nPixDiffTest","fracDiff"])
 
-        ## print a header comparison.
-        for mydir in dataDirs:
-            if projectRE.match(mydir):
-                baseProject = os.path.join(baseDir,mydir)
-                baseMaskList = [os.path.basename(mask) for mask in glob.glob(os.path.join(baseProject,"*.mask"))]                                     
-                testProject = os.path.join(testDir,mydir)
-                if os.path.exists(testProject):            
+            ## print a header comparison.
+            for mydir in dataDirs:
+                if projectRE.match(mydir):
+                    baseProject = os.path.join(baseDir,mydir)
+                    baseMaskList = [os.path.basename(mask) for mask in glob.glob(os.path.join(baseProject,"*.mask"))]                                     
+                    testProject = os.path.join(testDir,mydir)
+                    if os.path.exists(testProject):            
 
-                    for mask in baseMaskList:
-                        baseMaskPath = os.path.join(baseProject,mask)
-                        testMaskPath = os.path.join(testProject,mask)
+                        for mask in baseMaskList:
+                            baseMaskPath = os.path.join(baseProject,mask)
+                            testMaskPath = os.path.join(testProject,mask)
 
-                        ia.open(baseMaskPath)
-                        baseImageStats = ia.statistics()
-                        ia.close()
-                        nPixMask = baseImageStats['sum'][0]
-
-                        if os.path.exists(testMaskPath):
-
-                            diffImage = mask+'.diff'
-                            if not os.path.exists(diffImage):
-                                divexpr = 'abs(\"'+testMaskPath + '\"-\"'+ baseMaskPath+'\")'
-                                myim = ia.imagecalc(diffImage,divexpr,overwrite=True)
-                                myim.done()
-                                
-                            ia.open(diffImage)
-                            diffImageStats = ia.statistics()
+                            ia.open(baseMaskPath)
+                            baseImageStats = ia.statistics()
                             ia.close()
+                            nPixMask = baseImageStats['sum'][0]
 
-                            nPixDiff = diffImageStats['sum'][0]
-                            aresult['nPixDiff'] = nPixDiff
-                            aresult['nPixMask'] = nPixMask
+                            if os.path.exists(testMaskPath):
+                                ia.open(testMaskPath)
+                                testMaskStats = ia.statistics()
+                                ia.close()
 
-                            if nPixMask > 0:
-                                fracDiff = nPixDiff/nPixMask
-                                aresult['fracDiff'] = fracDiff
+                                nPixMaskTest = testMaskStats['sum'][0]
 
-                            if nPixDiff > 0:
-                                print "Mask differences found: ", mydir, mask
+                                diffImage = mask+'.diff'
+                                if not os.path.exists(diffImage):
+                                    divexpr = '\"'+testMaskPath + '\"-\"'+ baseMaskPath+'\"'
+                                    myim = ia.imagecalc(diffImage,divexpr,overwrite=True)
+                                    myim.done()
 
-                            #write to larger dictionary
-                            projectresult[mask] = aresult
-                            aresult = {}
+                                ia.open(diffImage)
+                                diffImagePix = ia.getchunk(dropdeg=True)
+                                ia.done()
+                                    
 
-                            # write to file
-                            outline = "{:20s} {:20s} {:10.0f} {:10.0f} {:5.3f} \n".format(mydir,mask,nPixDiff, nPixMask, fracDiff)
-                            fout.write(outline)
+                                nPixDiff = np.sum(abs(diffImagePix))
+                                nPixDiffBase = np.sum(diffImagePix < 0)
+                                nPixDiffTest = np.sum(diffImagePix > 0)
 
-                        else:
+                                #pdb.set_trace()
 
-                            aresult['nPixMask'] = nPixMask
-                            projectresult[mask] = aresult
-                            aresult = {}
+                                if nPixMask > 0:
+                                    fracDiff = nPixDiff/nPixMask
+                                    writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+                                else:
+                                    writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+                              
+                                # write to file
 
-                            outline = "{:20s} {:20s} -- {:10.0f}  --  \n".format(mydir,mask,nPixMask)
-                            fout.write(outline)
+                                
+                            else:
 
-                        result[mydir] = projectresult
-                        projectresult = {}
+                                writer.writerow([mydir,mask,nPixMask,nPixMaskTest,'--','--','--','--'])
 
-                else:
-                        print "no corresponding test project: ", mydir
-                        outline = "{:20s} {:20s} -- {:10.0f}  --  \n".format(mydir,mask,nPixMask)
-                        fout.write(outline)
 
-        ia.done()
-        fout.close()
-        return result
+                    else:
+                            print "no corresponding test project: ", mydir
+                            writer.writerow([mydir,mask,nPixMask,'--','--','--','--','--'])
+
+            ia.done()
 
     else:
         print "test directory doesn't exist:", mydir
