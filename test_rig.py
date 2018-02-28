@@ -246,11 +246,13 @@ def setupTest(benchmarkDir,testDir):
             for myscript in scripts:
                 scriptDir = os.path.join(testDir,mydir)
                 scriptPath = os.path.join(scriptDir,os.path.basename(myscript))
-                if not os.path.isfile(scriptPath):
+                if not os.path.isfile(scriptPath):                    
                     shutil.copy(myscript,scriptDir)
 
         # switch back to original directory
         os.chdir(currentDir)
+
+
 
 
 #----------------------------------------------------------------------
@@ -604,8 +606,6 @@ def createBatchScript(testDir, casaPath):
 
     projectRE = re.compile("(?P<project>\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3})")
 
-
-
     if os.path.exists(testDir):
         f = open(os.path.join(testDir,'pipelinerun'),'w')
         dataDirs = os.listdir(testDir)
@@ -746,3 +746,355 @@ def maskComparison(baseDir, testDir, outFile):
     else:
         print "test directory doesn't exist:", mydir
             
+
+#----------------------------------------------------------------------
+
+def extractBeamInfoFromLog(casalogfile,outfile):
+
+    '''
+    Get the beam information for various robust values from the log
+    and put it into a text file.
+    '''
+
+    # Purpose:  Get the beam information for various robust values from the log
+    # and put it into a text file.
+    
+    # Input: casalogfile from imageprecheck stage (currently stage 18)
+    #
+    # Output: text file with each line giving the beam size for a
+    # particular robust value
+    
+    # Date              Programmer              Description of Code
+    #----------------------------------------------------------------------
+    # 02/15/2018        A.A. Kepley             Original Code
+
+    import os.path
+    import re
+    import ast
+    
+    if os.path.exists(casalogfile):
+        filein = open(casalogfile,'r')
+        fileout = open(outfile,'w')
+
+        robustLineRE = re.compile(r"""
+        robust\s=\s(?P<robust>\S+)
+        """,re.VERBOSE)
+
+        beamLineRE = re.compile(r"""
+        Beam\s:\s
+        (?P<bmax>\S+?)\sarcsec,\s+
+        (?P<bmin>\S+?)\sarcsec,\s+
+        (?P<bpa>\S+?)\sdeg
+        """,re.VERBOSE)
+
+        for line in filein:
+            findRobustLine = robustLineRE.search(line)
+            if findRobustLine:
+                robust = findRobustLine.group('robust')
+
+            findBeamLine = beamLineRE.search(line)
+            if findBeamLine:
+                bmax = findBeamLine.group('bmax')
+                bmin = findBeamLine.group('bmin')
+                bpa = findBeamLine.group('bpa')
+                fileout.write(robust +' '+bmax+' '+bmin+' '+bpa+'\n')
+
+
+        filein.close()
+        fileout.close()
+
+     
+    else:
+        print "Couldn't open file: " + casalogfile
+
+
+#----------------------------------------------------------------------
+
+def makeBeamInfoFiles(dataDir,stage=18):
+
+    '''
+    Go through each of the projects in the pipeline directory,
+    figure out their beam parameters, and copy to the output data directory.
+    '''
+
+    # Purpose: extract beam information for various robust values, so
+    # that I can test the effects of the choice of robust values on the data.
+    # 
+    # Input:
+    #   dataDir: pdata directories holding logs
+    #   stage: stage number that has the beam info (right now 18, but that could change)
+    #
+    # Output:
+    #   text file in each data directory in dataDir with beam information
+    #
+    # Date              Programmer              Description of Code
+    #----------------------------------------------------------------------
+    # 2/15/2018         A.A. Kepley             Original Code
+
+    import os.path
+    import os
+    import glob
+    import re
+    import pdb
+
+    projectRE = re.compile("(?P<project>\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3})")
+  
+    if os.path.exists(dataDir):
+        dataDirs = os.listdir(dataDir)
+        for mydir in dataDirs:
+            project = projectRE.match(mydir).group('project')
+
+            projectDir = os.path.join(dataDir,mydir)
+            filename = 'stage'+str(stage)+'.log'
+            casalogfile = os.path.join(projectDir,filename)
+            outfile = os.path.join(projectDir,"beam_info.dat")
+            extractBeamInfoFromLog(casalogfile,outfile)
+
+    else:
+        print "Data directory doesn't exist: " + dataDir
+            
+#----------------------------------------------------------------------
+
+def modifyRobust(inScript,beamInfo,outScript,robust=2.0,ptsPerBeam=5.0):
+
+    '''
+    modify the robust, cellsize, imsize, and threshold in the given
+    test scripts
+
+    '''
+
+    # Purpose: modify the robust, cellsize, imsize, and threshold in the
+    # given test scripts
+
+    # Input:
+    #   inScript:
+    #
+    # Output:
+    #   outScript:
+
+    # Questions: -- Do I want to modify in place? Or do I want to
+    # copy, then modify?  -- I'm thinking that modifying in place
+    # might simplest? Although it might make testing harder? I'm
+    # thinking if I modify the the setupTest to have a parameter to
+    # modify the script rather than just straight copy. That might be
+    # easiest. It would also avoid overwriting files
+    
+    # Date              Programmer              Description of Changes
+    #----------------------------------------------------------------------
+    # 2/15/2018         A.A. Kepley             Original Code
+
+    
+    import re
+    import os.path
+    import pdb
+    import math
+    
+    tcleanCmd = re.compile(r"""
+    (?P<cmd>tclean\(   ## tclean command
+    .*
+    (?P<thresholdStr>threshold='(?P<threshold>.*?)(?P<unit>[a-zA-z]+)')
+    .*
+    (?P<imsizeStr>imsize=\[(?P<imsize1>.*?),(?P<imsize2>.*?)\])
+    .*
+    (?P<cellStr>cell=\['(?P<cell>.*?)arcsec'\])
+    .*
+    (?P<robustStr>robust=(?P<robust>.*?)),
+    .*\) ## end of tclean command
+    ) 
+    """,re.VERBOSE)
+
+    if os.path.exists(beamInfo):
+        filein = open(beamInfo)
+        for line in filein:
+            (robustTmp, bmaxTmp, bminTmp,bpaTmp) = line.rstrip().split(' ')
+            if float(robustTmp) == robust:
+                bmax = bmaxTmp
+                bmin = bminTmp
+                bpa = bpaTmp
+
+    if 'bmax' not in locals():
+        print "Given robust value not found in beam info file: ", beamInfo
+        print "exiting"
+    
+    else:
+        # let's get to work
+
+        cellOut = min(float(bmin),float(bmax))/ptsPerBeam
+
+        # values below derived from Todd's experiments in CAS-10153
+        if robust == -0.5:
+            thresholdFactor= 1.33         
+        elif robust == 2.0:
+            thresholdFactor = 0.95
+        else:
+            thresholdFactor=1.0
+    
+        if os.path.exists(inScript):
+            filein = open(inScript,'r')
+            fileout = open(outScript,'w')
+
+            for line in filein:
+                findtclean = tcleanCmd.search(line)
+                if findtclean:
+                    #print line
+                    robustIn = findtclean.group('robust')
+                    #print robustIn
+                    if float(robustIn) == robust:
+                        print "Not changing script. Input and output robust are the same",robust
+                    else:
+                        cellIn = float(findtclean.group('cell'))
+                        imsize1In = float(findtclean.group('imsize1'))
+                        imsize2In = float(findtclean.group('imsize2'))
+                        thresholdIn = float(findtclean.group('threshold'))
+
+                        imsize1Out = int(math.floor(imsize1In * (cellIn/cellOut)))
+                        imsize2Out = int(math.floor(imsize2In * (cellIn/cellOut)))
+                        thresholdOut = thresholdIn*thresholdFactor
+                        
+                        thresholdOutStr = "threshold='"+str(thresholdOut)+findtclean.group('unit')+"'"
+
+                        robustOutStr = "robust="+str(robust)
+                        cellOutStr = "cell=['"+str(cellOut)+"arcsec']"
+                        imsizeOutStr = "imsize=["+str(imsize1Out)+', '+str(imsize2Out)+"]"
+
+                        newline = line.replace(findtclean.group('thresholdStr'),thresholdOutStr)
+                        newline1 = newline.replace(findtclean.group('cellStr'),cellOutStr)
+                        newline2 = newline1.replace(findtclean.group('imsizeStr'),imsizeOutStr)
+                        newline3 = newline2.replace(findtclean.group('robustStr'),robustOutStr)
+
+                        fileout.write(newline3)
+
+
+                else:
+                    fileout.write(line)
+
+
+            filein.close()
+            fileout.close()
+
+#----------------------------------------------------------------------
+
+def setupRobustTest(benchmarkDir,testDir,robust=2,ptsPerBeam=5.0):
+    '''
+    Automatically populate a test directory with directories for
+    individual data sets, modifies the script for a new robust value
+    and copies over to a directory
+
+    '''
+
+    # Purpose:  automatically populate a test directory with directories for 
+    #          individual data sets and copy over the relevant scripts
+    #
+    # 
+    # Input:
+    #       benchmarkDir: directory with benchmarks
+    #       testDir: directory to run test in.
+    #
+    # 
+    # Output:
+    #       scripts and directory structure for test
+    #       
+
+    # Date          Programmer              Description of Code
+    # ---------- ------------------------------------------------------------
+    # 11/02/2017   A.A. Kepley             Original Code
+    # 2/15/2018    A.A. Kepley             Modified from setupTest
+    
+
+    import shutil
+    import glob
+    import os
+    import os.path
+    import pdb
+
+    # if the benchmark directory exists
+    if os.path.exists(benchmarkDir):
+
+        # get all the benchmarks
+        dataDirs = os.listdir(benchmarkDir)
+        
+        # go to test directory, create directory structure, and copy scripts
+        currentDir = os.getcwd()
+
+        if not os.path.exists(testDir):
+            os.mkdir(testDir)
+
+        os.chdir(testDir)
+        for mydir in dataDirs:
+
+            if not os.path.exists(mydir):
+                os.mkdir(mydir)
+
+            scripts = glob.glob(os.path.join(benchmarkDir,mydir)+"/*.py")
+            for myscript in scripts:
+                myOutScript = myscript.replace('.py','_r'+str(robust)+'.py') 
+                
+                scriptDir = os.path.join(testDir,mydir)
+                scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
+
+                if not os.path.isfile(scriptPath):
+                    beamInfoFile = os.path.join(os.path.join(benchmarkDir,mydir),'beam_info.dat')
+                    modifyRobust(myscript,beamInfoFile,myOutScript,robust=robust,ptsPerBeam=ptsPerBeam)
+
+        # switch back to original directory
+        os.chdir(currentDir)
+
+#----------------------------------------------------------------------
+
+def strip_logs(inlogs, channel=195):
+
+
+    '''
+    Purpose: Grab some relevant lines out of the logs to check cyclethreshold issue
+    '''
+
+    import re
+
+    for filein in inlogs:
+
+        f = open(filein, 'r')
+        fileout = filein.replace(".log","_trim.log")
+        fout = open(fileout,'w')
+
+        for line in f:
+            if re.search('threshold=".+Jy"',line):
+                fout.write(line)
+
+            if re.search("Peak residual \(max,min\)",line):
+                fout.write(line)
+
+            if re.search("Total Model Flux",line):
+                fout.write(line)
+
+            if channel:
+
+                if re.search("chan " + str(channel) + " ",line):
+                    fout.write(line)
+
+                if re.search("C"+str(channel)+"\]",line):
+                    fout.write(line)
+
+            if re.search("Number of pixels in the clean mask",line):
+                fout.write(line)
+
+            if re.search("CycleThreshold=",line):
+                fout.write(line)
+
+            if re.search("Total model flux",line):
+                fout.write(line)
+
+            if re.search("Completed .+ iterations.",line):
+                fout.write(line)
+
+            if re.search("Run Major Cycle",line):
+                fout.write(line)
+
+            if re.search("Run \(Last\) Major Cycle",line):
+                fout.write(line)
+
+            if re.search("grow iter done=",line):
+                fout.write(line)
+
+        fout.close()
+        f.close()
+
