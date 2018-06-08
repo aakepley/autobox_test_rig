@@ -50,26 +50,43 @@ test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_
 test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/grow_speedup')
 test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask')
 test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/negative_threshold')
+test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask_nocondition2')
+test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prerelease')
+
 
 test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_test',robust=2,ptsPerBeam=5.0)
 
+test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_ptsPerBeam3_test',robust=2,ptsPerBeam=3.0)
+
 test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_n05_test',robust=-0.5,ptsPerBeam=5.0)
 
-test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed/casa-feature-CAS-10758-1.el6')
 
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed/casa-feature-CAS-10758-1.el6')
 
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prune_speedup','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prune_speedup/casa-feature-CAS-10758-3.el6')
 
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/grow_speedup','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/grow_speedup/casa-feature-CAS-10758-9.el6')
 
-test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask/casa-feature-CAS-10758-11.el6')
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask/casa-feature-CAS-10758-16.el6')
 
-test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_test','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask/casa-feature-CAS-10758-9.el6')
 
-test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_test','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask/casa-feature-CAS-10758-9.el6')
+## DONE
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_test','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/grow_speedup/casa-feature-CAS-10758-9.el6')
+
+## MOSTLY RUN
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_ptsPerBeam3_test','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/grow_speedup/casa-feature-CAS-10758-9.el6')
+
+##  Mostly Run
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_n05_test','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/grow_speedup/casa-feature-CAS-10758-9.el6')
+
+
 
 
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/negative_threshold','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/negative_threshold/casa-feature-CAS-10758-13.el6')
+
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask_nocondition2','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/stop_mask/casa-feature-CAS-10758-20.el6')
+
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prerelease','')
 
 
 

@@ -37,7 +37,8 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
         dataDir = os.path.split(pipelineDir)[0]
         targetFiles = glob.glob(os.path.join(dataDir,'*target.ms'))
         
-        benchmarkName = re.findall('\d\d\d\d\.\w.\d\d\d\d\d\.\w_\d\d\d\d_\d\d_\d\dT\d\d_\d\d_\d\d\.\d\d\d',dataDir)[0]
+        benchmarkName = re.findall('\w\w\w\w\.\w.\d\d\d\d\d\.\w_\d\d\d\d_\d\d_\d\dT\d\d_\d\d_\d\d\.\d\d\d',dataDir)[0]
+      
         benchmarkDir = os.path.join(outDir,benchmarkName)
 
         if not os.path.exists(benchmarkDir):
@@ -636,6 +637,8 @@ def createBatchScript(testDir, casaPath):
 
 
 #casa --nologger --log2term
+
+
 #from taskinit import *
 #ia = iatool()
     
@@ -1025,9 +1028,11 @@ def setupRobustTest(benchmarkDir,testDir,robust=2,ptsPerBeam=5.0):
             if not os.path.exists(mydir):
                 os.mkdir(mydir)
 
-            scripts = glob.glob(os.path.join(benchmarkDir,mydir)+"/*.py")
+            scripts = glob.glob(os.path.join(benchmarkDir,mydir)+"/????.?.?????.?_????_??_??T??_??_??.???.py")
+            scripts.extend(glob.glob(os.path.join(benchmarkDir,mydir)+"/????.?.?????.?_????_??_??T??_??_??.???_stage??.py"))
+
             for myscript in scripts:
-                myOutScript = myscript.replace('.py','_r'+str(robust)+'.py') 
+                myOutScript = myscript.replace('.py','_r'+str(robust)+'_ptsPerBeam'+str(ptsPerBeam)+'.py') 
                 
                 scriptDir = os.path.join(testDir,mydir)
                 scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
@@ -1035,13 +1040,14 @@ def setupRobustTest(benchmarkDir,testDir,robust=2,ptsPerBeam=5.0):
                 if not os.path.isfile(scriptPath):
                     beamInfoFile = os.path.join(os.path.join(benchmarkDir,mydir),'beam_info.dat')
                     modifyRobust(myscript,beamInfoFile,myOutScript,robust=robust,ptsPerBeam=ptsPerBeam)
+                    shutil.copy(myOutScript,scriptDir)
 
         # switch back to original directory
         os.chdir(currentDir)
 
 #----------------------------------------------------------------------
 
-def strip_logs(inlogs, channel=195):
+def strip_logs(inlogs, channels=[195]):
 
 
     '''
@@ -1057,6 +1063,9 @@ def strip_logs(inlogs, channel=195):
         fout = open(fileout,'w')
 
         for line in f:
+            if re.search('imagename=".+"',line):
+                fout.write(line)
+
             if re.search('threshold=".+Jy"',line):
                 fout.write(line)
 
@@ -1066,13 +1075,20 @@ def strip_logs(inlogs, channel=195):
             if re.search("Total Model Flux",line):
                 fout.write(line)
 
-            if channel:
+            if channels:
+                
+                for achannel in channels:
 
-                if re.search("chan " + str(channel) + " ",line):
-                    fout.write(line)
+                    if re.search("chan " + str(achannel) + " ",line):
+                        fout.write(line)
+                        
+                    if re.search("C"+str(achannel)+"\]",line):
+                        fout.write(line)
+                        
+                    if re.search("set chanFlag\(to stop updating automask\)  to True for chan="+str(achannel)+"\n",line):
+                        fout.write(line)
 
-                if re.search("C"+str(channel)+"\]",line):
-                    fout.write(line)
+
 
             if re.search("Number of pixels in the clean mask",line):
                 fout.write(line)
@@ -1094,6 +1110,7 @@ def strip_logs(inlogs, channel=195):
 
             if re.search("grow iter done=",line):
                 fout.write(line)
+                
 
         fout.close()
         f.close()
