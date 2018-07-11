@@ -301,6 +301,7 @@ def tCleanTime(testDir):
         if len(logfile) > 1:
             print "Multiple logs found. Using the first one"
             mylog = logfile[0]
+            print "using log: ", mylog
         elif len(logfile) == 0:
             print "no logs found returning"
             return 
@@ -508,7 +509,347 @@ def tCleanTime(testDir):
         allresults = {}
             
     return allresults
+
+#----------------------------------------------------------------------
+
+def tCleanTime_newlogs(testDir):
+    '''
+    Time how long the parts in clean take for an individual test directory.
+    '''
+
+    # Purpose: mine logs for information about timing.
+    
+    # Input: 
+
+    #   testDir: I'm assuming that the testDirectory contains one
+    #   casalog file, but may want to add the option to specify a log
+
+    # Output:
+
+    #    a structure with all the timing information, plus vital stats
+    #    on the data set. Right now I'm keeping the imagename, whether
+    #    or not it's a cube and number of cycles. Some other
+    #    information that might be useful to keep: 
+    #       image size on disk -- get from os
+    #       threshold? -- from tclean input
+    #       nchan - will have to calculate -- can get from msmd? Ask Remy about this part.
+    #
+    #  Date             Programmer              Description of Changes
+    #----------------------------------------------------------------------
+    # 2017/11/08        A.A. Kepley             Original Code
+    # 2018/06/08        A.A. Kepley             Created a new copy of this function to deal with the new log structure.
+
+    import os
+    import os.path
+    import glob
+    import re
+    from datetime import datetime
+    import copy
+    import pdb
+
+    if os.path.exists(testDir):
+    
+        # get the file name
+        logfile = glob.glob(os.path.join(testDir,"*.log"))    
+
+        if len(logfile) > 1:
+            print "Multiple logs found. Using the first one"
+            mylog = logfile[0]
+            print "using log: ", mylog
+        elif len(logfile) == 0:
+            print "no logs found returning"
+            return 
+        else:
+            mylog = logfile[0]
+            print "using log: ", mylog
+
+        # regex patterns for below.
+        tcleanBeginRE = re.compile(r"Begin Task: tclean")
+
+        imagenameRE = re.compile(r'imagename=\"(?P<imagename>.*?)\"')
+        specmodeRE = re.compile(r'specmode=\"(?P<specmode>.*?)\"')
+
+        startMaskRE = re.compile(r'Generating AutoMask')
+        startThresholdRE = re.compile(r'Start thresholding: create an initial mask by threshold')
+        endThresholdRE = re.compile(r'End thresholding: time to create the initial threshold mask:')
+        startPrune1RE = re.compile(r'Start pruning: the initial threshold mask')
+        endPrune1RE = re.compile(r'End pruning: time to prune the initial threshold mask:')
+        startSmooth1RE = re.compile(r'Start smoothing: the initial threshold mask')
+        endSmooth1RE = re.compile(r'End smoothing: time to create the smoothed initial threshold mask:')
+
+        startGrowRE = re.compile(r'Start grow mask: growing the previous mask')
+        endGrowRE = re.compile(r'End grow mask:')
+        startPrune2RE = re.compile(r'Start pruning: on the grow mask')
+        endPrune2RE = re.compile(r'End pruning: time to prune the grow mask:')
+        startSmooth2RE = re.compile(r'Start smoothing: the grow mask')
+        endSmooth2RE = re.compile(r'End smoothing: time to create the smoothed grow mask:')
+
+        startNegativeThresholdRE = re.compile(r'Start thresholding: create a negative mask')
+        endNegativeThresholdRE = re.compile(r'End thresholding: time to create the negative mask:')
+
+        startMinorCycleRE = re.compile(r'Run Minor Cycle Iterations')
+        endMajorCycleRE = re.compile(r'Completed \w+ iterations.')
+        startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\w+?)')
+
+        endCleanRE = re.compile(r'Reached global stopping criterion : (?P<stopreason>.*)')
+        tcleanEndRE = re.compile(r"End Task: tclean")
+
+        dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+
+        # open file
+        filein = open(mylog,'r')
+
+        #initialize loop status        
+        imagename = ''
+        allresults = {}
+        results = {}
+        cycleresults = {}
+        cycle = '0'
+        specmode=''
+        
+        # go through file
+        for line in filein:
+
+            # capture start of tclean
+            if tcleanBeginRE.search(line):
+                startTimeStr = dateFmtRE.search(line)
+                if startTimeStr:                
+                    results['startTime'] = datetime.strptime(startTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+            # capture image name
+            if imagenameRE.search(line):
+                imagename = imagenameRE.search(line).group('imagename')
             
+            # capture line vs. continuum
+            if specmodeRE.search(line):
+                if re.match(specmodeRE.search(line).group('specmode'),'cube'):
+                    specmode='cube'
+                else:
+                    specmode='cont'
+
+            # if imagename is iter1, record automasking information.
+            if re.search('iter1', imagename):
+
+                # capture the start of the mask
+                if startMaskRE.search(line):
+                    maskStartTimeStr = dateFmtRE.search(line)
+                    if maskStartTimeStr:
+                        cycleresults['maskStartTime'] = datetime.strptime(maskStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')          
+
+                # capture the threshold time
+                if startThresholdRE.search(line):
+                    startThresholdTimeStr = dateFmtRE.search(line)
+                    if startThresholdTimeStr:
+                        cycleresults['startThresholdTime'] = datetime.strptime(startThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endThresholdRE.search(line):
+                    endThresholdTimeStr = dateFmtRE.search(line)
+                    if endThresholdTimeStr:
+                        cycleresults['endThresholdTime'] = datetime.strptime(endThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                        
+                # capture the prune time
+                if startPrune1RE.search(line):
+                    startPrune1TimeStr = dateFmtRE.search(line)
+                    if startPrune1TimeStr:
+                        cycleresults['startPrune1Time'] = datetime.strptime(startPrune1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endPrune1RE.search(line):
+                    endPrune1TimeStr = dateFmtRE.search(line)
+                    if endPrune1TimeStr:
+                        cycleresults['endPrune1Time'] = datetime.strptime(endPrune1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                                                
+                # capture the smooth time
+                if startSmooth1RE.search(line):
+                    startSmooth1TimeStr = dateFmtRE.search(line)
+                    if startSmooth1TimeStr:
+                        cycleresults['startSmooth1Time'] = datetime.strptime(startSmooth1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endSmooth1RE.search(line):
+                    endSmooth1TimeStr = dateFmtRE.search(line)
+                    if endSmooth1TimeStr:
+                        cycleresults['endSmooth1Time'] = datetime.strptime(endSmooth1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                # capture the grow
+                if startGrowRE.search(line):
+                    startGrowTimeStr = dateFmtRE.search(line)
+                    if startGrowTimeStr:
+                        cycleresults['startGrowTime'] = datetime.strptime(startGrowTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endGrowRE.search(line):
+                    endGrowTimeStr = dateFmtRE.search(line)
+                    if endGrowTimeStr:
+                        cycleresults['endGrowTime'] = datetime.strptime(endGrowTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                # capture 2nd prune
+                if startPrune2RE.search(line):
+                    startPrune2TimeStr = dateFmtRE.search(line)
+                    if startPrune2TimeStr:
+                        cycleresults['startPrune2Time'] = datetime.strptime(startPrune2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endPrune2RE.search(line):
+                    endPrune2TimeStr = dateFmtRE.search(line)
+                    if endPrune2TimeStr:
+                        cycleresults['endPrune2Time'] = datetime.strptime(endPrune2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                # capture 2nd smooth
+                if startSmooth2RE.search(line):
+                    startSmooth2TimeStr = dateFmtRE.search(line)
+                    if startSmooth2TimeStr:
+                        cycleresults['startSmooth2Time'] = datetime.strptime(startSmooth2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endSmooth2RE.search(line):
+                    endSmooth2TimeStr = dateFmtRE.search(line)
+                    if endSmooth2TimeStr:
+                        cycleresults['endSmooth2Time'] = datetime.strptime(endSmooth2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                # capture the negative threshold
+                if startNegativeThresholdRE.search(line):
+                    startNegativeThresholdTimeStr = dateFmtRE.search(line)
+                    if startNegativeThresholdTimeStr:
+                        cycleresults['startNegativeThresholdTime'] = datetime.strptime(startNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                if endNegativeThresholdRE.search(line):
+                    endNegativeThresholdTimeStr = dateFmtRE.search(line)
+                    if endNegativeThresholdTimeStr:
+                        cycleresults['endNegativeThresholdTime'] = datetime.strptime(endNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                # capture the start of the minor cycle
+                if startMinorCycleRE.search(line):
+                    startMinorCycleTimeStr = dateFmtRE.search(line)
+                    if startMinorCycleTimeStr:
+                        cycleresults['startMinorCycleTime'] = datetime.strptime(startMinorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                # capture the start of the Major Cycle
+                if startMajorCycleRE.search(line):
+                    cycle = startMajorCycleRE.search(line).group('cycle')
+                    startMajorCycleTimeStr = dateFmtRE.search(line)
+                    if startMajorCycleTimeStr:
+                        cycleresults['startMajorCycleTime'] = datetime.strptime(startMajorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+
+                # capture the end of the major cycle
+                if endMajorCycleRE.search(line):
+                    endMajorCycleTimeStr = dateFmtRE.search(line)
+
+                    if endMajorCycleTimeStr:
+                        cycleresults['endMajorCycleTime'] = datetime.strptime(endMajorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                        
+                        # calculate times
+                        cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
+                        cycleresults['cycleTime'] = cycleresults['endMajorCycleTime'] - cycleresults['maskStartTime']
+
+                        cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
+                        
+                        # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
+                        if cycleresults.has_key('startPrune1Time'):
+                            # To keep this calculation consistent with the previous logs, the prune1Time is actually the Prune1Time+smooth1Time.
+                            # I also calculate the smooth1Time, so that should give me how long the the smooth took compared to the prune+smooth.
+                            if cycleresults.has_key('startGrowTime'):
+                                cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
+                            else:
+                                cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
+
+                        # should always smooth
+                        cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
+                        
+                        # The following might not always happen depending on how the auto-multithresh parameters are set.
+                        if cycleresults.has_key('startGrowTime'):
+                            cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
+                            
+                        if cycleresults.has_key('startPrune2Time'):
+                            # Ditto the comments for prune1Time
+                            if cycleresults.has_key('startNegativeThresholdTime'):
+                                cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
+                            else:
+                                cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
+                                                   
+                        if cycleresults.has_key('startSmooth2Time'):
+                            cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
+
+                        if cycleresults.has_key('startNegativeThresholdTime'):
+                            cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
+
+                        ## save major cycle information here
+                        results[cycle] = cycleresults
+                        cycleresults={}
+
+                # if  clean stops  catch this. 
+                if endCleanRE.search(line):
+                    endCleanStr = dateFmtRE.search(line)
+
+                    if endCleanStr:
+                        cycleresults['endCleanTime'] = datetime.strptime(endCleanStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+              
+                        # calculate times. Note that here I need to capture the case where the minor cycle doesn't happen.
+                        if cycleresults.has_key('startMinorCycleTime'):
+                            cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
+                        else: 
+                            cycleresults['totalMasktime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
+
+                            if cycleresults.has_key('startMajorCycleTime'):
+                                cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['startMajorCycleTime']
+                            else:
+                                cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
+
+                        cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
+                        
+                        # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
+                        if cycleresults.has_key('startPrune1Time'):
+                            if cycleresults.has_key('startGrowTime'):
+                                cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
+                            else:
+                                cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
+                                                   
+                        # should always smooth
+                        cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
+                        
+                        # The following might not always happen depending on how the auto-multithresh parameters are set.
+                        if cycleresults.has_key('startGrowTime'):
+                            cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
+                            
+                        if cycleresults.has_key('startPrune2Time'):
+                            if cycleresults.has_key('startNegativeThresholdTime'):
+                                cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
+                            else:
+                                cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
+                                                  
+                        if cycleresults.has_key('startSmooth2Time'):
+                            cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
+
+                        if cycleresults.has_key('startNegativeThresholdTime'):
+                            cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
+
+                        ## save major cycle information here
+                        results[cycle] = cycleresults
+                        results['stopreason'] = endCleanRE.search(line).group('stopreason')
+                        cycleresults={}
+
+                # capture the end of the clean
+                if tcleanEndRE.search(line):
+                    endTimeStr = dateFmtRE.search(line)
+                    if endTimeStr:
+                        results['endTime'] = datetime.strptime(endTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                    
+
+                    # calculate overall statistics.
+                    results['tcleanTime'] = results['endTime']-results['startTime']
+                    results['ncycle'] = cycle
+                    results['specmode'] = specmode
+
+                    
+                    # if iter1 image, save results and clear variables.
+                    if re.search('iter1',imagename):
+                        allresults[imagename] = results
+                        #pdb.set_trace()
+
+                    # clear for next clean run
+                    results = {} 
+                    cycleresults = {}
+                    imagename = ''
+                    cycle = '0'
+                    specmode=''
+
+        filein.close()
+
+    else:
+        print "no path found"
+        allresults = {}
+            
+    return allresults
+
         
 #----------------------------------------------------------------------
 
@@ -551,11 +892,13 @@ def flattenTimingData(inDict):
                 'endCleanTime': [],
                 'startNegativeThresholdTime': [],
                 'endNegativeThresholdTime': [],
-                'negativeThresholdTime': []}
+                'negativeThresholdTime': [],
+                'smooth1Time':[],
+                'smooth2Time': []}
     
-    durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime']
+    durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime','smooth1Time','smooth2Time']
     timeKeys = ['startPrune2Time','startGrowTime']
-    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime']
+    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime','smooth1Time','smooth2Time']
 
 
     for (project,images) in inDict.iteritems():
@@ -622,133 +965,6 @@ def createBatchScript(testDir, casaPath):
                 f.write(outline)
         f.close()
 
-#----------------------------------------------------------------------
-
-## Here I want to write some code to compare masks. Note that all the
-## data comes out of tclean as casa images, so I need to deal with
-## those rather than fits images, unless I want to add a step that
-## converts to fits.
-
-# I'm going to assume I'm doing this in CASA because that's just going
-# to be easier.
-
-## below I need to figure out some way to call the code only if I'm in
-## casa. May need to make the mask comparison a separate code file.
-
-
-#casa --nologger --log2term
-
-
-#from taskinit import *
-#ia = iatool()
-    
-def maskComparison(baseDir, testDir, outFile):
-
-    '''
-    Compare the test masks to the base masks and see if anything has changed.
-    '''
-
-    # Input: 
-    #       baseDir: base speed directory
-    #       testDir: test directory
-    #       outFile: text file for results
-    #
-    # Output:
-    #       text file with results 
-    #
-    # TO DO:
-    #    -- check that this works for nterms>2 images
-    #
-    # Date              Programmer              Description of Changes
-    #----------------------------------------------------------------------
-    # 11/16/2017?       A.A. Kepley             Original Code
-    # 12/08/2017        A.A. Kepley             Modified original code to extract more stats
-
-    import os
-    import os.path
-    import re
-    import glob
-    import csv
-    import numpy as np
-    import pdb
-
-    projectRE = re.compile("\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
- 
-    if os.path.exists(baseDir):
-
-        dataDirs = os.listdir(baseDir)
-        
-        with open(outFile,'w') as csvfile:
-            writer = csv.writer(csvfile,delimiter=',')
-
-            writer.writerow(["# Base: "+baseDir])
-            writer.writerow(["# Test: "+testDir])
-            writer.writerow(["Project","Mask","nPixMaskBase","nPixMaskTest","nPixDiff","nPixDiffBase","nPixDiffTest","fracDiff"])
-
-            ## print a header comparison.
-            for mydir in dataDirs:
-                if projectRE.match(mydir):
-                    baseProject = os.path.join(baseDir,mydir)
-                    baseMaskList = [os.path.basename(mask) for mask in glob.glob(os.path.join(baseProject,"*.mask"))]                                     
-                    testProject = os.path.join(testDir,mydir)
-                    if os.path.exists(testProject):            
-
-                        for mask in baseMaskList:
-                            baseMaskPath = os.path.join(baseProject,mask)
-                            testMaskPath = os.path.join(testProject,mask)
-
-                            ia.open(baseMaskPath)
-                            baseImageStats = ia.statistics()
-                            ia.close()
-                            nPixMask = baseImageStats['sum'][0]
-
-                            if os.path.exists(testMaskPath):
-                                ia.open(testMaskPath)
-                                testMaskStats = ia.statistics()
-                                ia.close()
-
-                                nPixMaskTest = testMaskStats['sum'][0]
-
-                                diffImage = mask+'.diff'
-                                if not os.path.exists(diffImage):
-                                    divexpr = '\"'+testMaskPath + '\"-\"'+ baseMaskPath+'\"'
-                                    myim = ia.imagecalc(diffImage,divexpr,overwrite=True)
-                                    myim.done()
-
-                                ia.open(diffImage)
-                                diffImagePix = ia.getchunk(dropdeg=True)
-                                ia.done()
-                                    
-
-                                nPixDiff = np.sum(abs(diffImagePix))
-                                nPixDiffBase = np.sum(diffImagePix < 0)
-                                nPixDiffTest = np.sum(diffImagePix > 0)
-
-                                #pdb.set_trace()
-
-                                if nPixMask > 0:
-                                    fracDiff = nPixDiff/nPixMask
-                                    writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
-                                else:
-                                    writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
-                              
-                                # write to file
-
-                                
-                            else:
-
-                                writer.writerow([mydir,mask,nPixMask,nPixMaskTest,'--','--','--','--'])
-
-
-                    else:
-                            print "no corresponding test project: ", mydir
-                            writer.writerow([mydir,mask,nPixMask,'--','--','--','--','--'])
-
-            ia.done()
-
-    else:
-        print "test directory doesn't exist:", mydir
-            
 
 #----------------------------------------------------------------------
 
