@@ -108,7 +108,7 @@ def maskComparison(baseDir, testDir, outFile):
 
                                 
                             else:
-                                print "no corresponding test image"
+                                print "no corresponding test image: ", testMaskPath
                                 writer.writerow([mydir,mask,nPixMask,'--','--','--','--','--'])
 
 
