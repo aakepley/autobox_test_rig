@@ -56,6 +56,10 @@ test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_
 test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/new_noise_nonzeroloc')
 
 
+
+test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange')
+
+
 test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_test',robust=2,ptsPerBeam=5.0)
 
 test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_ptsPerBeam3_test',robust=2,ptsPerBeam=3.0)
@@ -94,9 +98,12 @@ test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3
 
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/new_noise_nonzeroloc','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/new_noise_nonzeroloc/casa-test-CAS-11216-5.el6')
 
+
+
 # To submit batch processing to the cluster.
 # /lustre/naasc/users/jrobnett/alma-pipeline/bin/batch_pipe.sh -m 245 ./pipelinerun
 
 
 
 
+test_rig.tCleanTime_newlogs('.')

@@ -314,6 +314,10 @@ def tCleanTime(testDir):
         imagenameRE = re.compile(r'imagename=\"(?P<imagename>.*?)\"')
         specmodeRE = re.compile(r'specmode=\"(?P<specmode>.*?)\"')
         startMaskRE = re.compile(r'Generating AutoMask')
+
+        sidelobeRE = re.compile(r'SidelobeLevel = ')
+        modelFluxRE = re.compile(r'Total Model Flux : (?P<flux>\d*\.\d+|\d+)')
+
         startMinorCycleRE = re.compile(r'Run Minor Cycle Iterations')
         endMajorCycleRE = re.compile(r'Completed \w+ iterations.')
         startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\w+?)')
@@ -323,6 +327,10 @@ def tCleanTime(testDir):
         startNegativeThresholdRE = re.compile(r'Creating a mask for negative features.')
         endNegativeThresholdRE = re.compile(r'No negative region was found by auotmask.')
         endCleanRE = re.compile(r'Reached global stopping criterion : (?P<stopreason>.*)')
+
+        startRestoreRE = re.compile(r'Restoring model image')
+        endRestoreRE = re.compile(r'Applying PB correction')
+
         tcleanEndRE = re.compile(r"End Task: tclean")
         #tcleanFailRE = re.compile(r"An error occurred running task tclean.") ## catch artifact of running in batch mode.
         tcleanFailRE = re.compile(r'Exception from task_tclean : couldn\'t connect to display ":0"') ## catch artifact of running batch mode without xbuffer
@@ -369,7 +377,14 @@ def tCleanTime(testDir):
                     maskStartTimeStr = dateFmtRE.search(line)
                     if maskStartTimeStr:
                         cycleresults['maskStartTime'] = datetime.strptime(maskStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-                    
+
+                # capture noise calculation
+                if sidelobeRE.search(line):
+                    sidelobeStartTimeStr = dateFmtRE.search(line)
+                    if sidelobeStartTimeStr:
+                        cycleresults['noiseEndTime'] = datetime.strptime(sidelobeStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                        cycleresults['noiseTime'] = cycleresults['noiseEndTime'] - cycleresults['maskStartTime']
+
                 # capture first prune 
                 if startPrune1RE.search(line):
                     startPrune1TimeStr = dateFmtRE.search(line)
@@ -394,7 +409,6 @@ def tCleanTime(testDir):
                     if startNegativeThresholdTimeStr:
                         cycleresults['startNegativeThresholdTime'] = datetime.strptime(startNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
-
                 # capture the negative threshold end
                 if endNegativeThresholdRE.search(line):
                     endNegativeThresholdTimeStr = dateFmtRE.search(line)
@@ -407,7 +421,10 @@ def tCleanTime(testDir):
                     startMajorCycleTimeStr = dateFmtRE.search(line)
                     if startMajorCycleTimeStr:
                         cycleresults['startMajorCycleTime'] = datetime.strptime(startMajorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-
+                # capture amount of flux in model
+                if modelFluxRE.search(line):
+                    modelFlux = modelFluxRE.search(line).group('flux')
+                    cycleresults['modelFlux'] = float(modelFlux)
 
                 # capture the start of the minor cycle
                 if startMinorCycleRE.search(line):
@@ -478,6 +495,18 @@ def tCleanTime(testDir):
                     results[cycle] = cycleresults
                     cycleresults={}
 
+                # capture restore time here
+                if startRestoreRE.search(line):
+                    startRestoreStr = dateFmtRE.search(line)
+                    if startRestoreStr:
+                        results['startRestoreTime'] = datetime.strptime(startRestoreStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                if endRestoreRE.search(line):
+                    endRestoreStr = dateFmtRE.search(line)
+                    if endRestoreStr:
+                        results['endRestoreTime'] = datetime.strptime(endRestoreStr.group('timedate'), '%Y-%m-%d %H:%M:%S')
+                        results['restoreTime'] = results['endRestoreTime'] - results['startRestoreTime']
+                            
                 # capture the end of the clean
                 if tcleanEndRE.search(line) or tcleanFailRE.search(line):
                     endTimeStr = dateFmtRE.search(line)
@@ -569,7 +598,9 @@ def tCleanTime_newlogs(testDir):
         imagenameRE = re.compile(r'imagename=\"(?P<imagename>.*?)\"')
         specmodeRE = re.compile(r'specmode=\"(?P<specmode>.*?)\"')
 
-        startMaskRE = re.compile(r'Generating AutoMask')
+        startMaskRE = re.compile(r'Generating AutoMask')        
+        sidelobeRE = re.compile(r'SidelobeLevel = ')
+
         startThresholdRE = re.compile(r'Start thresholding: create an initial mask by threshold')
         endThresholdRE = re.compile(r'End thresholding: time to create the initial threshold mask:')
         startPrune1RE = re.compile(r'Start pruning: the initial threshold mask')
@@ -587,11 +618,17 @@ def tCleanTime_newlogs(testDir):
         startNegativeThresholdRE = re.compile(r'Start thresholding: create a negative mask')
         endNegativeThresholdRE = re.compile(r'End thresholding: time to create the negative mask:')
 
+        modelFluxRE = re.compile(r'Total Model Flux : (?P<flux>\d*\.\d+|\d+)')
+
         startMinorCycleRE = re.compile(r'Run Minor Cycle Iterations')
         endMajorCycleRE = re.compile(r'Completed \w+ iterations.')
         startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\w+?)')
 
         endCleanRE = re.compile(r'Reached global stopping criterion : (?P<stopreason>.*)')
+
+        startRestoreRE = re.compile(r'Restoring model image')
+        endRestoreRE = re.compile(r'Applying PB correction')
+
         tcleanEndRE = re.compile(r"End Task: tclean")
 
         dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
@@ -634,7 +671,14 @@ def tCleanTime_newlogs(testDir):
                 if startMaskRE.search(line):
                     maskStartTimeStr = dateFmtRE.search(line)
                     if maskStartTimeStr:
-                        cycleresults['maskStartTime'] = datetime.strptime(maskStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')          
+                        cycleresults['maskStartTime'] = datetime.strptime(maskStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')       
+                
+                # capture noise calculation
+                if sidelobeRE.search(line):
+                    sidelobeStartTimeStr = dateFmtRE.search(line)
+                    if sidelobeStartTimeStr:
+                        cycleresults['noiseEndTime'] = datetime.strptime(sidelobeStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                        cycleresults['noiseTime'] = cycleresults['noiseEndTime'] - cycleresults['maskStartTime']
 
                 # capture the threshold time
                 if startThresholdRE.search(line):
@@ -705,7 +749,11 @@ def tCleanTime_newlogs(testDir):
                     endNegativeThresholdTimeStr = dateFmtRE.search(line)
                     if endNegativeThresholdTimeStr:
                         cycleresults['endNegativeThresholdTime'] = datetime.strptime(endNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-
+                # capture amount of flux in model
+                if modelFluxRE.search(line):
+                    modelFlux = modelFluxRE.search(line).group('flux')
+                    cycleresults['modelFlux'] = float(modelFlux)
+                        
                 # capture the start of the minor cycle
                 if startMinorCycleRE.search(line):
                     startMinorCycleTimeStr = dateFmtRE.search(line)
@@ -816,7 +864,19 @@ def tCleanTime_newlogs(testDir):
                         results[cycle] = cycleresults
                         results['stopreason'] = endCleanRE.search(line).group('stopreason')
                         cycleresults={}
-
+                
+                # capture restore time here
+                if startRestoreRE.search(line):
+                    startRestoreStr = dateFmtRE.search(line)
+                    if startRestoreStr:
+                        results['startRestoreTime'] = datetime.strptime(startRestoreStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+                        
+                if endRestoreRE.search(line):
+                    endRestoreStr = dateFmtRE.search(line)
+                    if endRestoreStr:
+                        results['endRestoreTime'] = datetime.strptime(endRestoreStr.group('timedate'), '%Y-%m-%d %H:%M:%S')
+                        results['restoreTime'] = results['endRestoreTime'] - results['startRestoreTime']
+                        
                 # capture the end of the clean
                 if tcleanEndRE.search(line):
                     endTimeStr = dateFmtRE.search(line)
@@ -894,11 +954,16 @@ def flattenTimingData(inDict):
                 'endNegativeThresholdTime': [],
                 'negativeThresholdTime': [],
                 'smooth1Time':[],
-                'smooth2Time': []}
+                'smooth2Time': [],
+                'startRestoreTime':[],
+                'endRestoreTime': [],
+                'restoreTime':[],
+                'noiseTime': [],
+                'endNoiseTime':[],
+                'modelFlux':[]}
     
-    durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime','smooth1Time','smooth2Time']
-    timeKeys = ['startPrune2Time','startGrowTime']
-    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime','smooth1Time','smooth2Time']
+    durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime','smooth1Time','smooth2Time','noiseTime']
+    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime','smooth1Time','smooth2Time','noiseTime','endNoiseTime','modelFlux']
 
 
     for (project,images) in inDict.iteritems():
@@ -916,6 +981,9 @@ def flattenTimingData(inDict):
                 flatDict['specmode'].append(data['specmode'])
                 flatDict['tcleanTime'].append(float(data['tcleanTime'].seconds))
                 flatDict['endTime'].append(data['endTime'])
+                flatDict['startRestoreTime'].append(data['startRestoreTime'])
+                flatDict['endRestoreTime'].append(data['endRestoreTime'])
+                flatDict['restoreTime'].append(data['restoreTime'])
 
                 # doing something a little bit fancy.
                 for akey in cycleKeys:

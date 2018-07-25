@@ -12,7 +12,7 @@
 from taskinit import *
 ia = iatool()
     
-def maskComparison(baseDir, testDir, outFile):
+def MaskComparison(baseDir, testDir, outFile):
 
     '''
     Compare the test masks to the base masks and see if anything has changed.
@@ -123,3 +123,27 @@ def maskComparison(baseDir, testDir, outFile):
             
 
 
+def compareImages(baseMaskPath,testMaskPath,fileout):
+    '''
+    This chunk of code does the comparison on two different images
+    '''
+
+    # Input: 
+    #   baseMaskPath: fidicual mask
+    #   testMaskPath: test mask
+    #   writer: where to write the results to.
+
+
+    pass
+
+
+
+
+def test_function_passing():
+    fh = open("junk.dat","w")
+    write_stuff(fh)
+    fh.close()
+
+def write_stuff(fh):
+    fh.write("test\n")
+    
