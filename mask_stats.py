@@ -12,7 +12,7 @@
 from taskinit import *
 ia = iatool()
     
-def MaskComparison(baseDir, testDir, outFile):
+def maskComparison(baseDir, testDir, outFile):
 
     '''
     Compare the test masks to the base masks and see if anything has changed.

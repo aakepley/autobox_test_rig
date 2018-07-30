@@ -43,6 +43,10 @@ import test_rig
 for pDir in pipelineDir:
     test_rig.extractDataFromPipeline(pDir,outDir,stages=stages)
 
+dPir = '/lustre/naasc/sciops/comm/rindebet/pipeline/root/2017.1.00370.S_2018_07_21T15_48_59.392/SOUS_uid___A001_X1273_X498/GOUS_uid___A001_X1273_X499/MOUS_uid___A001_X1273_X49a/working/pipeline-20180721T164006'
+
+test_rig.extractDataFromPipeline(dPir,outDir,stages=[31,33,35])
+
 outDir = '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/data/'
 
 test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed')
@@ -65,6 +69,8 @@ test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/ca
 test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_p2_ptsPerBeam3_test',robust=2,ptsPerBeam=3.0)
 
 test_rig.setupRobustTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/robust_n05_test',robust=-0.5,ptsPerBeam=5.0)
+
+test_rig.setupNewParameterTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange','minpercentchange=3.0','minpercentchange3')
 
 
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/base_speed/casa-feature-CAS-10758-1.el6')
@@ -98,12 +104,20 @@ test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3
 
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/new_noise_nonzeroloc','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/new_noise_nonzeroloc/casa-test-CAS-11216-5.el6')
 
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange','')
 
 
 # To submit batch processing to the cluster.
 # /lustre/naasc/users/jrobnett/alma-pipeline/bin/batch_pipe.sh -m 245 ./pipelinerun
 
 
+## Adding Remy's really waffly data set.
 
+dPir = '/lustre/naasc/sciops/comm/rindebet/pipeline/root/2017.1.00370.S_2018_07_21T15_48_59.392/SOUS_uid___A001_X1273_X498/GOUS_uid___A001_X1273_X499/MOUS_uid___A001_X1273_X49a/working/pipeline-20180721T164006'
 
-test_rig.tCleanTime_newlogs('.')
+test_rig.extractDataFromPipeline(dPir,outDir,stages=[31,33,35])
+
+outDir = '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/data/'
+
+test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange')
+

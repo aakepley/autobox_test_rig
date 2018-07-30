@@ -320,7 +320,7 @@ def tCleanTime(testDir):
 
         startMinorCycleRE = re.compile(r'Run Minor Cycle Iterations')
         endMajorCycleRE = re.compile(r'Completed \w+ iterations.')
-        startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\w+?)')
+        startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\d*)')
         startPrune1RE = re.compile(r'Pruning the current mask')
         startGrowRE = re.compile(r'Growing the previous mask')
         startPrune2RE = re.compile(r'Pruning the growed previous mask')
@@ -622,7 +622,7 @@ def tCleanTime_newlogs(testDir):
 
         startMinorCycleRE = re.compile(r'Run Minor Cycle Iterations')
         endMajorCycleRE = re.compile(r'Completed \w+ iterations.')
-        startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\w+?)')
+        startMajorCycleRE = re.compile(r'Major Cycle (?P<cycle>\d*)')
 
         endCleanRE = re.compile(r'Reached global stopping criterion : (?P<stopreason>.*)')
 
@@ -753,13 +753,7 @@ def tCleanTime_newlogs(testDir):
                 if modelFluxRE.search(line):
                     modelFlux = modelFluxRE.search(line).group('flux')
                     cycleresults['modelFlux'] = float(modelFlux)
-                        
-                # capture the start of the minor cycle
-                if startMinorCycleRE.search(line):
-                    startMinorCycleTimeStr = dateFmtRE.search(line)
-                    if startMinorCycleTimeStr:
-                        cycleresults['startMinorCycleTime'] = datetime.strptime(startMinorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-
+                    
                 # capture the start of the Major Cycle
                 if startMajorCycleRE.search(line):
                     cycle = startMajorCycleRE.search(line).group('cycle')
@@ -767,6 +761,13 @@ def tCleanTime_newlogs(testDir):
                     if startMajorCycleTimeStr:
                         cycleresults['startMajorCycleTime'] = datetime.strptime(startMajorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
+                # capture the start of the minor cycle
+                if startMinorCycleRE.search(line):
+                    startMinorCycleTimeStr = dateFmtRE.search(line)
+                    if startMinorCycleTimeStr:
+                        cycleresults['startMinorCycleTime'] = datetime.strptime(startMinorCycleTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+                
 
                 # capture the end of the major cycle
                 if endMajorCycleRE.search(line):
@@ -778,7 +779,6 @@ def tCleanTime_newlogs(testDir):
                         # calculate times
                         cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
                         cycleresults['cycleTime'] = cycleresults['endMajorCycleTime'] - cycleresults['maskStartTime']
-
                         cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
                         
                         # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
@@ -817,53 +817,52 @@ def tCleanTime_newlogs(testDir):
                 # if  clean stops  catch this. 
                 if endCleanRE.search(line):
                     endCleanStr = dateFmtRE.search(line)
-
                     if endCleanStr:
                         cycleresults['endCleanTime'] = datetime.strptime(endCleanStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
               
-                        # calculate times. Note that here I need to capture the case where the minor cycle doesn't happen.
-                        if cycleresults.has_key('startMinorCycleTime'):
-                            cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
-                        else: 
-                            cycleresults['totalMasktime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
+                    # calculate times. Note that here I need to capture the case where the minor cycle doesn't happen.
+                    if cycleresults.has_key('startMinorCycleTime'):
+                        cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
+                    else: 
+                        cycleresults['totalMasktime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
 
-                            if cycleresults.has_key('startMajorCycleTime'):
-                                cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['startMajorCycleTime']
-                            else:
-                                cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
+                    if cycleresults.has_key('startMajorCycleTime'):
+                        cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['startMajorCycleTime']
+                    else:
+                        cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
 
-                        cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
+                    cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
                         
-                        # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
-                        if cycleresults.has_key('startPrune1Time'):
-                            if cycleresults.has_key('startGrowTime'):
-                                cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
-                            else:
-                                cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
-                                                   
-                        # should always smooth
-                        cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
-                        
-                        # The following might not always happen depending on how the auto-multithresh parameters are set.
+                    # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
+                    if cycleresults.has_key('startPrune1Time'):
                         if cycleresults.has_key('startGrowTime'):
-                            cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
+                            cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
+                        else:
+                            cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
+                                                   
+                    # should always smooth
+                    cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
+                        
+                    # The following might not always happen depending on how the auto-multithresh parameters are set.
+                    if cycleresults.has_key('startGrowTime'):
+                        cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
                             
-                        if cycleresults.has_key('startPrune2Time'):
-                            if cycleresults.has_key('startNegativeThresholdTime'):
-                                cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
-                            else:
-                                cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
-                                                  
-                        if cycleresults.has_key('startSmooth2Time'):
-                            cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
-
+                    if cycleresults.has_key('startPrune2Time'):
                         if cycleresults.has_key('startNegativeThresholdTime'):
-                            cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
+                            cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
+                        else:
+                            cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
+                                
+                    if cycleresults.has_key('startSmooth2Time'):
+                        cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
 
-                        ## save major cycle information here
-                        results[cycle] = cycleresults
-                        results['stopreason'] = endCleanRE.search(line).group('stopreason')
-                        cycleresults={}
+                    if cycleresults.has_key('startNegativeThresholdTime'):
+                        cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
+
+                    ## save major cycle information here
+                    results[cycle] = cycleresults
+                    results['stopreason'] = endCleanRE.search(line).group('stopreason')
+                    cycleresults={}
                 
                 # capture restore time here
                 if startRestoreRE.search(line):
@@ -883,7 +882,6 @@ def tCleanTime_newlogs(testDir):
                     if endTimeStr:
                         results['endTime'] = datetime.strptime(endTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
                     
-
                     # calculate overall statistics.
                     results['tcleanTime'] = results['endTime']-results['startTime']
                     results['ncycle'] = cycle
@@ -1324,6 +1322,112 @@ def setupRobustTest(benchmarkDir,testDir,robust=2,ptsPerBeam=5.0):
                 if not os.path.isfile(scriptPath):
                     beamInfoFile = os.path.join(os.path.join(benchmarkDir,mydir),'beam_info.dat')
                     modifyRobust(myscript,beamInfoFile,myOutScript,robust=robust,ptsPerBeam=ptsPerBeam)
+                    shutil.copy(myOutScript,scriptDir)
+
+        # switch back to original directory
+        os.chdir(currentDir)
+
+#----------------------------------------------------------------------
+
+
+def addParameters(inScript,outScript,parameters):
+    ''' 
+    Add a parameter to an existing tclean script
+    '''
+
+    # Purpose: add a parameter to an existing tclean script
+
+    # Input:
+    #   inScript
+
+    # Output:
+    #  outScript
+
+    # Date              Programmer      Description of Changes
+    # ------------------------------------------------------------------------
+    # 7/27/2018         A.A. Kepley     Original Code
+    
+    import re
+    import os.path
+    import pdb
+    import math
+
+    
+    tcleanCmd = re.compile(r"""
+    (?P<cmd>tclean\(   ## tclean command
+    .*\) ## end of tclean command
+    ) 
+    """,re.VERBOSE)
+
+    if os.path.exists(inScript):
+        filein = open(inScript,'r')
+        fileout = open(outScript,'w')
+        
+        for line in filein:
+            findtclean = tcleanCmd.search(line)
+
+            if findtclean:
+                outline = line.replace(')',', '+parameters+')')                
+                fileout.write(outline)
+            else:
+                fileout.write(line)
+
+        filein.close()
+        fileout.close()
+                
+
+#----------------------------------------------------------------------
+
+def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
+    '''
+    setup a test where I have added additional parameters to the data set.
+    '''
+
+    # Input:
+    #   benchmarkDir: directory with benchmarks
+    #   testDir: directory to run test in
+
+    # Output:
+    #   scripts and directory structure for test
+
+    # Date      Programmer              Description of Code
+    #----------------------------------------------------------------------
+    # 7/27/2018 A.A. Kepley             Original Code
+
+    import shutil
+    import glob
+    import os
+    import os.path
+    import pdb
+
+    # if the benchmark directory exists
+    if os.path.exists(benchmarkDir):
+        
+        # get all benchmarks
+        dataDirs = os.listdir(benchmarkDir)
+        
+        # go to test directory, create a directory structure, and copy scripts
+        currentDir = os.getcwd()
+
+        if not os.path.exists(testDir):
+            os.mkdir(testDir)
+
+        os.chdir(testDir)
+        for mydir in dataDirs:
+            if not os.path.exists(mydir):
+                os.mkdir(mydir)
+                
+            scripts = glob.glob(os.path.join(benchmarkDir,mydir)+"/????.?.?????.?_????_??_??T??_??_??.???.py")
+            scripts.extend(glob.glob(os.path.join(benchmarkDir,mydir)+"/????.?.?????.?_????_??_??T??_??_??.???_stage??.py"))
+
+            for myscript in scripts:
+                myOutScript = myscript.replace('.py','_'+scriptID+'.py') 
+                
+                scriptDir = os.path.join(testDir,mydir)
+                scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
+
+                if not os.path.isfile(scriptPath):
+                    addParameters(myscript,myOutScript,parameters)
                     shutil.copy(myOutScript,scriptDir)
 
         # switch back to original directory
