@@ -1163,6 +1163,8 @@ def modifyRobust(inScript,beamInfo,outScript,robust=2.0,ptsPerBeam=5.0):
     # thinking if I modify the the setupTest to have a parameter to
     # modify the script rather than just straight copy. That might be
     # easiest. It would also avoid overwriting files
+
+    # Note: this could probably be modified to use modify parameters.
     
     # Date              Programmer              Description of Changes
     #----------------------------------------------------------------------
@@ -1278,7 +1280,8 @@ def setupRobustTest(benchmarkDir,testDir,robust=2,ptsPerBeam=5.0):
     # 
     # Output:
     #       scripts and directory structure for test
-    #       
+
+
 
     # Date          Programmer              Description of Code
     # ---------- ------------------------------------------------------------
@@ -1343,6 +1346,8 @@ def addParameters(inScript,outScript,parameters):
     # Output:
     #  outScript
 
+    # Notes: This is potentially superseded by modifyParameters.
+
     # Date              Programmer      Description of Changes
     # ------------------------------------------------------------------------
     # 7/27/2018         A.A. Kepley     Original Code
@@ -1367,6 +1372,7 @@ def addParameters(inScript,outScript,parameters):
             findtclean = tcleanCmd.search(line)
 
             if findtclean:
+                # just add the new parameters onto the end of the tclean command
                 outline = line.replace(')',', '+parameters+')')                
                 fileout.write(outline)
             else:
@@ -1375,7 +1381,79 @@ def addParameters(inScript,outScript,parameters):
         filein.close()
         fileout.close()
                 
+#----------------------------------------------------------------------
 
+def modifyParameters(inScript,outScript, parameters):
+    '''
+
+    modify the parameter values
+
+    parameters is a set of tuples giving the parameter name and the
+    value to be changed to.
+
+    NO PARAMETER CHECKING IS DONE. IF YOU'RE USING THIS, YOU SHOULD
+    KNOW WHAT YOU'RE DOING.
+
+    '''
+
+    # Purpose: modify parameter values in an existing tclean script
+    
+    # Input:
+    #   inScript
+
+
+    # Output:
+    #   outScript
+
+    # Method: I'm giving a list of tuples describing key value pairs
+    #           here, so I can change multiple parameters at
+    #           once. I've also made it so parameters that don't show
+    #           up are added.
+    #   
+
+    # Date              Programmer              Description of Changes
+    #----------------------------------------------------------------------
+    # 7/31/2018         A.A. Kepley             original code
+
+    import re
+    import os.path
+    import pdb
+    import math
+
+    tcleanCmd = re.compile(r"""
+    (?P<cmd>tclean\(   ## tclean command
+    .*\) ## end of tclean command
+    ) 
+    """,re.VERBOSE)
+    
+    if os.path.exists(inScript):
+        filein = open(inScript,'r')
+        fileout = open(outScript,'w')
+
+        for line in filein:                    
+            if tcleanCmd.search(line):
+                # modify the line for each parameter we want
+                # change. This may not be the most efficient.
+                for (key,value) in parameters:
+                    newstr = key+'='+str(value)
+                    mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)
+                    if mymatch:
+                        print "match found! modifying input parameter" 
+                        line = line.replace(mymatch.group('mykey'),newstr)
+                    else:
+                        print "no match found for "+key                        
+                        print "adding to parameter list"
+                        line = line.replace(')',', '+newstr+')')
+
+            fileout.write(line)
+                
+
+        filein.close()
+        fileout.close()
+
+    
+                
+    
 #----------------------------------------------------------------------
 
 def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
@@ -1386,6 +1464,9 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
     # Input:
     #   benchmarkDir: directory with benchmarks
     #   testDir: directory to run test in
+
+    #   parameters: list of tuples with (key,value) for each paraemter to change. 
+    #     Note NO checks are done on whether the parameters are valid.
 
     # Output:
     #   scripts and directory structure for test
@@ -1427,7 +1508,7 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
                 scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
 
                 if not os.path.isfile(scriptPath):
-                    addParameters(myscript,myOutScript,parameters)
+                    modifyParameters(myscript,myOutScript,parameters)
                     shutil.copy(myOutScript,scriptDir)
 
         # switch back to original directory

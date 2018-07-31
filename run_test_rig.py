@@ -132,3 +132,5 @@ test_rig.setupNewParameterTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/auto
 test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/noGrowPrune','')
 
 
+testparam = (('robust',2),('niter',5),('interactive',1),('dogrowprune',False))
+test_rig.modifyParameters('2015.1.00131.S_2017_09_26T01_03_04.615.py','junk.py',testparam)
