@@ -134,3 +134,19 @@ test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3
 
 testparam = (('robust',2),('niter',5),('interactive',1),('dogrowprune',False))
 test_rig.modifyParameters('2015.1.00131.S_2017_09_26T01_03_04.615.py','junk.py',testparam)
+
+import mask_stats
+import csv
+
+csvfile = open('test.csv','w')
+writer = csv.writer(csvfile,delimiter=',')
+
+mask_stats.compareMasks('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange/2015.1.00956.S_2017_09_20T17_31_55.500/uid___A001_X2fb_X2b9.s29_0.NGC_4321_sci.spw19.mfs.I.iter1.mask',
+              '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prerelease/2015.1.00956.S_2017_09_20T17_31_55.500/uid___A001_X2fb_X2b9.s29_0.NGC_4321_sci.spw19.mfs.I.iter1.mask',
+              writer)
+
+csvfile.close()
+
+
+
+mask_stats.runMaskComparison('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prerelease','test.csv',projects=['2015.1.00131.S_2017_09_26T01_03_04.615','2016.1.00565.S_2017_09_21T19_36_22.299'])

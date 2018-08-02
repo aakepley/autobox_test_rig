@@ -121,9 +121,9 @@ def maskComparison(baseDir, testDir, outFile):
     else:
         print "test directory doesn't exist:", mydir
             
+#----------------------------------------------------------------------
 
-
-def compareImages(baseMaskPath,testMaskPath,fileout):
+def compareMask(baseMaskPath,testMaskPath,writer):
     '''
     This chunk of code does the comparison on two different images
     '''
@@ -132,18 +132,140 @@ def compareImages(baseMaskPath,testMaskPath,fileout):
     #   baseMaskPath: fidicual mask
     #   testMaskPath: test mask
     #   writer: where to write the results to.
+    #
+    # Output:
+    #   diffImage
+    #   results to writer
+    # 
+    # Notes:
+    #   Should I assume that the files have alaredy been tested for existance?
+    #
+    #   Date    Programmer              Description of Changes
+    #----------------------------------------------------------------------
+    # 7/31/2018 A.A. Kepley             Original Code
 
+    import os
+    import os.path
+    import re
+    import glob
+    import csv
+    import numpy as np
+    import pdb
 
-    pass
+    mask = os.path.basename(baseMaskPath).replace('.mask','')
+    mydir = os.path.basename(os.path.dirname(baseMaskPath))
 
+    ia.open(baseMaskPath)
+    baseImageStats = ia.statistics()
+    ia.close()
+    nPixMask = baseImageStats['sum'][0]
 
-
-
-def test_function_passing():
-    fh = open("junk.dat","w")
-    write_stuff(fh)
-    fh.close()
-
-def write_stuff(fh):
-    fh.write("test\n")
+    if os.path.exists(testMaskPath):
+        ia.open(testMaskPath)
+        testMaskStats = ia.statistics()
+        ia.close()
     
+        nPixMaskTest = testMaskStats['sum'][0]
+
+        diffImage = mask+'.diff'
+        if not os.path.exists(diffImage):
+             divexpr = '\"'+testMaskPath + '\"-\"'+ baseMaskPath+'\"'
+             myim = ia.imagecalc(diffImage,divexpr,overwrite=True)
+             myim.done()
+
+        ia.open(diffImage)
+        diffImagePix = ia.getchunk(dropdeg=True)
+        ia.done()
+
+        nPixDiff = np.sum(abs(diffImagePix))
+        nPixDiffBase = np.sum(diffImagePix < 0)
+        nPixDiffTest = np.sum(diffImagePix > 0)
+        
+        # pdb.set_trace
+
+        if nPixMask > 0:
+            fracDiff = nPixDiff/nPixMask
+            writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+        else:
+            writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+
+    else:
+         print "no corresponding test image: ", testMaskPath
+         #writer.writerow([mydir,mask,nPixMask,'--','--','--','--','--'])
+                                
+    # clean up image tool
+    ia.done()
+
+#----------------------------------------------------------------------
+
+def runMaskComparison(baseDir, testDir, outFile,projects=None):
+
+    '''
+    Compare the test masks to the base masks and see if anything has changed.
+    '''
+
+    # Input: 
+    #       baseDir: base speed directory
+    #       testDir: test directory
+    #       outFile: text file for results
+    #   
+    #       projects: list of strings matching the projects you want to check.
+    #
+    # Output:
+    #       text file with results 
+    #
+    # TO DO:
+    #    -- check that this works for nterms>2 images -- I think it does, but should double-check
+    #    -- compare the mask per channel.
+    #    -- separate out the actual mask comparison from the directory crawl.
+    #
+    # Date              Programmer              Description of Changes
+    #----------------------------------------------------------------------
+    # 11/16/2017?       A.A. Kepley             Original Code
+    # 12/08/2017        A.A. Kepley             Modified original code to extract more stats
+    # 08/01/2018        A.A. Kepley             modified so that it uses compareMasks
+
+    import os
+    import os.path
+    import re
+    import glob
+    import csv
+    import numpy as np
+    import pdb
+
+    projectRE = re.compile("\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+ 
+    if os.path.exists(baseDir):
+        dataDirs = os.listdir(baseDir)
+
+        if not projects:
+            projects = dataDirs
+        
+        with open(outFile,'w') as csvfile:
+            writer = csv.writer(csvfile,delimiter=',')
+
+            writer.writerow(["# Base: "+baseDir])
+            writer.writerow(["# Test: "+testDir])
+            writer.writerow(["Project","Mask","nPixMaskBase","nPixMaskTest","nPixDiff","nPixDiffBase","nPixDiffTest","fracDiff"])
+
+            for mydir in dataDirs:
+                if (projectRE.match(mydir)) and (mydir in projects):
+                    baseProject = os.path.join(baseDir,mydir)
+                    baseMaskList = [os.path.basename(mask) for mask in glob.glob(os.path.join(baseProject,"*.mask"))]        
+                    testProject = os.path.join(testDir,mydir)
+                    
+                    if os.path.exists(testProject):            
+                        for mask in baseMaskList:
+                            baseMaskPath = os.path.join(baseProject,mask)
+                            testMaskPath = os.path.join(testProject,mask)                            
+                            compareMask(baseMaskPath, testMaskPath, writer)
+                    else:
+                        print "no corresponding test project: ", mydir
+    
+    else:
+        print "test directory doesn't exist:", mydir
+
+
+#----------------------------------------------------------------------
+
+
