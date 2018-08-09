@@ -150,3 +150,23 @@ csvfile.close()
 
 
 mask_stats.runMaskComparison('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/minpercentchange','/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/prerelease','test.csv',projects=['2015.1.00131.S_2017_09_26T01_03_04.615','2016.1.00565.S_2017_09_21T19_36_22.299'])
+
+# Another test project
+
+import test_rig
+pipelineDir = '/lustre/old_naasc/sciops/comm/thunter/pipeline/root/r41809_5.4.0-46_parallel/2017.1.00661.S_2018_07_31T15_33_33.055/SOUS_uid___A001_X128e_X216/GOUS_uid___A001_X128e_X217/MOUS_uid___A001_X128e_X21a/working/pipeline-20180731T172703'
+outDir = '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/data/'
+
+# what pipeline stages we are interested in.
+stages = [31,33,35,37] 
+
+test_rig.extractDataFromPipeline(pipelineDir,outDir,stages=stages)
+
+testparam = (('negativethreshold','7.0'))
+test_rig.modifyParameters('2015.1.00131.S_2017_09_26T01_03_04.615.py','junk.py',testparam)
+
+
+import sys
+sys.path.append('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/code')
+import test_rig
+test_rig.modifyParameters('2017.1.00661.S_2018_07_31T15_33_33.055_stage35.py','2017.1.00661.S_2018_07_31T15_33_33.055_stage35_negativethreshold7.py',[('negativethreshold',7.0),('parallel',False)])
