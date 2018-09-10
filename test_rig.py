@@ -1584,3 +1584,37 @@ def strip_logs(inlogs, channels=[195]):
         fout.close()
         f.close()
 
+#----------------------------------------------------------------------
+
+def split_mpi_logs(log,n=8):
+
+    '''
+    split up mpi logs so that they make more sense
+
+    inlog: input log
+    n: number of cores, set to 8 by default. number of mpi servers is n-1
+
+    '''
+
+    import re
+
+    # opening up log files
+    inlog = open(log,'r')
+    outlog_mpi = [open(log.replace('.log','_mpi'+str(i)+'.log'),'w') for i in range(n)]
+
+    # setting up the regular expression
+    mpilineRE = re.compile(r"MPIServer-(?P<mpi>\d+)")
+
+    for line in inlog:
+        if mpilineRE.search(line):
+            mpi = int(mpilineRE.search(line).group('mpi'))
+
+            outlog_mpi[mpi].write(line)
+        else:
+            outlog_mpi[0].write(line)
+        
+
+    # closing everything up
+    inlog.close()
+    for fh in outlog_mpi:
+        fh.close()
