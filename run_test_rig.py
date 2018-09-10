@@ -170,3 +170,17 @@ import sys
 sys.path.append('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/code')
 import test_rig
 test_rig.modifyParameters('2017.1.00661.S_2018_07_31T15_33_33.055_stage35.py','2017.1.00661.S_2018_07_31T15_33_33.055_stage35_negativethreshold7.py',[('negativethreshold',7.0),('parallel',False)])
+
+
+# adding yet another NGC6334 data set that has issues with masking
+
+import test_rig
+
+dPir = '/lustre/old_naasc/sciops/comm/rindebet/pipeline/root/r41809_5.4.0-46_parallel/2017.1.00717.S_2018_07_31T15_36_15.431/SOUS_uid___A001_X1273_Xc64/GOUS_uid___A001_X1273_Xc65/MOUS_uid___A001_X1273_Xc66/working/pipeline-20180731T180858'
+outDir = '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/data/'
+
+test_rig.extractDataFromPipeline(dPir,outDir,stages=[31,33,35])
+
+
+
+
