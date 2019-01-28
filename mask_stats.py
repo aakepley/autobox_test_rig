@@ -123,7 +123,7 @@ def maskComparison(baseDir, testDir, outFile):
             
 #----------------------------------------------------------------------
 
-def compareMask(baseMaskPath,testMaskPath,writer):
+def compareMask(baseMaskPath,testMaskPath,writer,label=None):
     '''
     This chunk of code does the comparison on two different images
     '''
@@ -185,9 +185,15 @@ def compareMask(baseMaskPath,testMaskPath,writer):
 
         if nPixMask > 0:
             fracDiff = nPixDiff/nPixMask
-            writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+            if label:
+                writer.writerow([label,mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+            else:
+                 writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
         else:
-            writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+            if label:
+                writer.writerow([label,mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+            else:
+                writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
 
     else:
          print "no corresponding test image: ", testMaskPath
