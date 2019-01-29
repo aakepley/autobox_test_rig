@@ -119,6 +119,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         """,re.VERBOSE)
 
         ntermsRE = re.compile("nterms=(?P<nterms>.*?),")
+        copytreeRE = re.compile("(?P<copytree>copytree\(.*\))")
 
         filein = open(casalogfile,'r')
         fileout = open(outfile,'w')
@@ -126,6 +127,8 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         # this may need to be modified for mfs images
         imageExt = ['.pb','.psf','.residual','.sumwt','.weight']
         
+        copytreePresent = False
+
         for line in filein:
 
             # look for tclean command
@@ -144,12 +147,9 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                 newvis = [dataDir+'/'+val for val in ast.literal_eval(vis)]                
                 newcmd = cmd.replace(vis,repr(newvis))
 
-                # write out the necessary commands to a file.
-                fileout.write(newcmd+'\n\n')
-
-                # follow the iter0 with commands to copy iter0 to iter1
-                if re.search('iter0',imagename):
-
+                # follow the iter0 with commands to copy iter0 to iter1 if no copytree commands are present.
+                if re.search('iter1',imagename) and not copytreePresent:
+                    
                     # dealing with the mtmfs case.
                     if deconvolver == 'mtmfs':
 
@@ -173,16 +173,25 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                             if ext == '.weight':
                                 for term in range(int(nterms)+1):
                                     fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
-                        
 
-
-                    # dealing with the rest of the caes.            
+                    # dealing with the rest of the cases.            
                     else:
                         for ext in imageExt:
                             fileout.write("os.system('cp -ir "+imagename+ext+' '+ imagename.replace('iter0','iter1')+ext+"')\n")
-
-
+                    
                     fileout.write('\n')
+
+                # Write out the necessary commands to a file.
+                fileout.write(newcmd+'\n\n')
+
+
+            # find copy tree command
+            findcopytree = copytreeRE.search(line)
+
+            # if present then write out command and set the copytreePresent variable to True.
+            if findcopytree:
+                fileout.write("shutil."+findcopytree.group('copytree')+"\n\n")
+                copytreePresent = True
     
         filein.close()
         fileout.close()
@@ -1005,7 +1014,7 @@ def flattenTimingData(inDict):
 
 #----------------------------------------------------------------------
 
-def createBatchScript(testDir, casaPath):
+def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8):
     '''
     generate a pipeline batch script quickly to send jobs to nodes
     '''
@@ -1023,11 +1032,24 @@ def createBatchScript(testDir, casaPath):
             if projectRE.match(mydir):
                 project = projectRE.match(mydir).group('project')
                 projectDir = os.path.join(testDir,mydir)
-                script = os.path.join(projectDir,project)+'.py'
 
-                outline = "cd " +projectDir + \
-                          "; export PATH="+os.path.join(casaPath, "bin") + ":${PATH}" + \
-                          "; xvfb-run -d casa --nogui -c " + script +"\n"
+                if scriptname:
+                    script = os.path.join(projectDir,project)+'_'+scriptname+'.py'
+                else:
+                    script = os.path.join(projectDir,project)+'.py'
+
+                
+                if mpi:
+                    outline = "cd " +projectDir + \
+                              "; export PATH="+os.path.join(casaPath, "bin") + ":${PATH}" + \
+                              "; xvfb-run -d mpicasa -n "+str(n)+" casa --nogui -c " + script +"\n"
+
+                else:
+
+                    outline = "cd " +projectDir + \
+                              "; export PATH="+os.path.join(casaPath, "bin") + ":${PATH}" + \
+                              "; xvfb-run -d casa --nogui -c " + script +"\n"
+
                 f.write(outline)
         f.close()
 
@@ -1507,9 +1529,9 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
                 scriptDir = os.path.join(testDir,mydir)
                 scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
 
-                if not os.path.isfile(scriptPath):
-                    modifyParameters(myscript,myOutScript,parameters)
-                    shutil.copy(myOutScript,scriptDir)
+                #if not os.path.isfile(scriptPath):
+                modifyParameters(myscript,myOutScript,parameters)
+                shutil.copy(myOutScript,scriptDir)
 
         # switch back to original directory
         os.chdir(currentDir)
