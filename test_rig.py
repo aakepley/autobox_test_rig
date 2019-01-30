@@ -68,7 +68,7 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
             outTcleanCmd = os.path.join(benchmarkDir,benchmarkName+'_stage'+str(stage)+'.py')
             extractTcleanFromLog(outStageLog,benchmarkDir,outTcleanCmd)
 
-        os.system("cat " + os.path.join(benchmarkDir,benchmarkName)+"*.py > "+os.path.join(benchmarkDir,benchmarkName)+".py")
+        os.system("cat " + os.path.join(benchmarkDir,benchmarkName)+"_stage??.py > "+os.path.join(benchmarkDir,benchmarkName)+".py")
             
 
     else:
@@ -119,7 +119,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         """,re.VERBOSE)
 
         ntermsRE = re.compile("nterms=(?P<nterms>.*?),")
-        copytreeRE = re.compile("(?P<copytree>copytree\(.*\))")
+        copytreeRE = re.compile("(?P<copytree>copytree\(src=(?P<src>'.*?'),.*\))")
 
         filein = open(casalogfile,'r')
         fileout = open(outfile,'w')
@@ -190,7 +190,8 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
 
             # if present then write out command and set the copytreePresent variable to True.
             if findcopytree:
-                fileout.write("shutil."+findcopytree.group('copytree')+"\n\n")
+                fileout.write('if os.path.exists('+findcopytree.group('src')+'):\n')
+                fileout.write("    shutil."+findcopytree.group('copytree')+"\n\n")
                 copytreePresent = True
     
         filein.close()
@@ -1014,7 +1015,7 @@ def flattenTimingData(inDict):
 
 #----------------------------------------------------------------------
 
-def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8):
+def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8, stage=None):
     '''
     generate a pipeline batch script quickly to send jobs to nodes
     '''
@@ -1026,17 +1027,35 @@ def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8):
     projectRE = re.compile("(?P<project>\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3})")
 
     if os.path.exists(testDir):
-        f = open(os.path.join(testDir,'pipelinerun'),'w')
+        
+        if stage:
+            pipename = 'pipelinerun.stage'+str(stage)
+
+        else:
+            pipename = 'pipelinerun'
+
+        if mpi:
+            pipename = pipename+".parallel"
+        else:
+            pipename = pipename+".serial"
+
+        f = open(os.path.join(testDir,pipename),'w')
         dataDirs = os.listdir(testDir)
         for mydir in dataDirs:
             if projectRE.match(mydir):
                 project = projectRE.match(mydir).group('project')
                 projectDir = os.path.join(testDir,mydir)
 
-                if scriptname:
-                    script = os.path.join(projectDir,project)+'_'+scriptname+'.py'
+                basescriptname = os.path.join(projectDir,project)
+
+                if stage and scriptname:
+                    script = basescriptname+'_stage'+str(stage)+'_'+scriptname+'.py'
+                elif stage and not scriptname:
+                    script = basescriptname+'_stage'+str(stage)+'.py'
+                elif not stage and scriptname:
+                    script = basescriptname+'_'+scriptname+'.py'
                 else:
-                    script = os.path.join(projectDir,project)+'.py'
+                    script = basescriptname+'.py'
 
                 
                 if mpi:
