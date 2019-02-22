@@ -182,5 +182,11 @@ outDir = '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/d
 test_rig.extractDataFromPipeline(dPir,outDir,stages=[31,33,35])
 
 
+## Final 5.4.0-68 speed tests
+
+outDir = '/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/data/'
+
+test_rig.setupTest(outDir,'/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/casa540-68_serial')
 
 
+test_rig.createBatchScript('/lustre/naasc/sciops/comm/akepley/pl/autobox/casa5.3_dev/speed_tests/casa540-68_serial','/home/casa/packages/RHEL6/release/casa-release-5.4.0-68')
