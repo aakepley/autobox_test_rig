@@ -1092,7 +1092,7 @@ def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8, stage=N
     import glob
     import re
 
-    projectRE = re.compile("(?P<project>\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3})")
+    projectRE = re.compile("(?P<project>\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3})")
 
     if os.path.exists(testDir):
         
@@ -1625,104 +1625,3 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
 
 #----------------------------------------------------------------------
 
-def strip_logs(inlogs, channels=[195]):
-
-
-    '''
-    Purpose: Grab some relevant lines out of the logs to check cyclethreshold issue
-    '''
-
-    import re
-
-    for filein in inlogs:
-
-        f = open(filein, 'r')
-        fileout = filein.replace(".log","_trim.log")
-        fout = open(fileout,'w')
-
-        for line in f:
-            if re.search('imagename=".+"',line):
-                fout.write(line)
-
-            if re.search('threshold=".+Jy"',line):
-                fout.write(line)
-
-            if re.search("Peak residual \(max,min\)",line):
-                fout.write(line)
-
-            if re.search("Total Model Flux",line):
-                fout.write(line)
-
-            if channels:
-                
-                for achannel in channels:
-
-                    if re.search("chan " + str(achannel) + " ",line):
-                        fout.write(line)
-                        
-                    if re.search("C"+str(achannel)+"\]",line):
-                        fout.write(line)
-                        
-                    if re.search("set chanFlag\(to stop updating automask\)  to True for chan="+str(achannel)+"\n",line):
-                        fout.write(line)
-
-
-
-            if re.search("Number of pixels in the clean mask",line):
-                fout.write(line)
-
-            if re.search("CycleThreshold=",line):
-                fout.write(line)
-
-            if re.search("Total model flux",line):
-                fout.write(line)
-
-            if re.search("Completed .+ iterations.",line):
-                fout.write(line)
-
-            if re.search("Run Major Cycle",line):
-                fout.write(line)
-
-            if re.search("Run \(Last\) Major Cycle",line):
-                fout.write(line)
-
-            if re.search("grow iter done=",line):
-                fout.write(line)
-                
-
-        fout.close()
-        f.close()
-
-#----------------------------------------------------------------------
-
-def split_mpi_logs(log,n=8):
-
-    '''
-    split up mpi logs so that they make more sense
-
-    inlog: input log
-    n: number of cores, set to 8 by default. number of mpi servers is n-1
-
-    '''
-
-    import re
-
-    # opening up log files
-    inlog = open(log,'r')
-    outlog_mpi = [open(log.replace('.log','_mpi'+str(i)+'.log'),'w') for i in range(n)]
-
-    # setting up the regular expression
-    mpilineRE = re.compile(r"MPIServer-(?P<mpi>\d+)")
-
-    for line in inlog:
-        if mpilineRE.search(line):
-            mpi = int(mpilineRE.search(line).group('mpi'))
-            outlog_mpi[mpi].write(line)
-        else:
-            for i in range(0,n):
-                outlog_mpi[i].write(line)
-
-    # closing everything up
-    inlog.close()
-    for fh in outlog_mpi:
-        fh.close()
