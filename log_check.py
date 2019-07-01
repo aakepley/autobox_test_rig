@@ -15,6 +15,8 @@ import analysisUtils as au
 
 import test_rig
 
+
+
 def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
 
     '''
@@ -46,7 +48,6 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
     .*\) ## end of tclean command
     ) 
     """,re.VERBOSE)
-
     niter0RE = re.compile(r"niter=0")
 
     posDivRE = re.compile(r"Possible divergence")
@@ -64,7 +65,7 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
     imagename=''
     printline=False
     mpimess = {}
-    mpimess['0'] = [] # initialize 0 mpimess (both serial and parallel)
+
 
     if os.path.exists(logfile):
         filein  = open(logfile,'r')
@@ -87,7 +88,8 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
 
                 # save data if we want to
                 if printline:
-                    mpimess['0'].append(line)
+                    mpimess[imagename] = {'0':[]}
+                    mpimess[imagename]['0'].append(line)
 
             # print matching output lines
             if printline:
@@ -96,7 +98,6 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
                 if (posDivRE.search(line) or 
                     peakResidRE.search(line) or 
                     exitCriteriaRE.search(line) or 
-                    maskWarnRE.search(line) or
                     majorCycleRE.search(line) or 
                     minorCycleRE.search(line) or
                     cyclethresholdRE.search(line)):
@@ -104,13 +105,15 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
                     # save to appropriate mpi message log
                     if mpilineRE.search(line):
                         mpinum = mpilineRE.search(line).group('mpi')
-                        if mpimess.has_key(mpinum):
-                            mpimess[mpinum].append(line)
-                        else:
-                            mpimess[mpinum] = []
-                            mpimess[mpinum].append(line)
+                        if not mpimess[imagename].has_key(mpinum):
+                            mpimess[imagename][mpinum] = []
+                        mpimess[imagename][mpinum].append(line)
                     else:                        
-                        mpimess['0'].append(line)                        
+                        mpimess[imagename]['0'].append(line)                        
+
+            if maskWarnRE.search(line):
+                mpimess[imagename]['0'].append("\n")
+                mpimess[imagename]['0'].append(line)      
 
             # turn off printing when you hit the final tclean command
             if (findtclean and niter0RE.search(line)):
@@ -121,20 +124,27 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
         
         # write out results to outfile
         fileout = open(outfile,'w')
-        for mpi in sorted(mpimess.keys()):
+        for image in sorted(mpimess.keys()):
 
-            if int(mpi) > 0:
-                fileout.write('\n')
-                fileout.write('----------------------------------------------------\n')
-                fileout.write('                  MPIServer-'+mpi+'\n')
-                fileout.write('----------------------------------------------------\n')
-                fileout.write('\n')
+            fileout.write('\n')
+            fileout.write('---------------------------------------------------------------------------\n')
+            fileout.write('      ' + image + '      \n')
+            fileout.write('---------------------------------------------------------------------------\n')
+            fileout.write('\n')
 
-            for line in mpimess[mpi]:
-                fileout.write(line)
+            for mpi in sorted(mpimess[image].keys()):
+
+                if int(mpi) > 0:
+
+                    fileout.write('\n')
+                    fileout.write('MPIServer-'+mpi+':\n')
+                    fileout.write('\n')
+
+                for line in mpimess[image][mpi]:
+                    fileout.write(line)
 
     else: 
-        print "logfile does not exist"
+        print "logfile does not exist:", logfile
         return
 
 #----------------------------------------------------------------------    
