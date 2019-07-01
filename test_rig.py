@@ -42,14 +42,14 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
         benchmarkDir = os.path.join(outDir,benchmarkName)
 
         if not os.path.exists(benchmarkDir):
-            print "Creating directory for data: ", benchmarkDir
+            print("Creating directory for data: ", benchmarkDir)
             os.mkdir(benchmarkDir)
 
         for myfile in targetFiles:
             targetFileName = os.path.basename(myfile)
             benchmarkData = os.path.join(benchmarkDir,targetFileName)
             if not os.path.exists(benchmarkData):
-                print "Copying over data: ", targetFileName
+                print("Copying over data: ", targetFileName)
                 shutil.copytree(myfile,benchmarkData)
 
         # find, copy, and modify over the relevant casalog files
@@ -61,7 +61,7 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
             outStageLog = os.path.join(benchmarkDir,'stage'+str(stage)+'.log')
             
             if not os.path.exists(outStageLog):
-                print "Copying over stage " + str(stage)+ " log" 
+                print("Copying over stage " + str(stage)+ " log" )
                 shutil.copy(stageLog,outStageLog)
 
             # extracting tclean commands from the casalog file
@@ -72,7 +72,7 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
             
 
     else:
-        print "path doesn't exist: " + pipelineDir
+        print("path doesn't exist: " + pipelineDir)
 
 #----------------------------------------------------------------------
 
@@ -198,7 +198,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         fileout.close()
 
     else:
-        print "Couldn't open file: " + casalogfile
+        print("Couldn't open file: " + casalogfile)
 
 #----------------------------------------------------------------------
 
@@ -309,15 +309,15 @@ def tCleanTime(testDir):
         logfile = glob.glob(os.path.join(testDir,"*.log"))    
 
         if len(logfile) > 1:
-            print "Multiple logs found. Using the first one"
+            print("Multiple logs found. Using the first one")
             mylog = logfile[0]
-            print "using log: ", mylog
+            print("using log: ", mylog)
         elif len(logfile) == 0:
-            print "no logs found returning"
+            print("no logs found returning")
             return 
         else:
             mylog = logfile[0]
-            print "using log: ", mylog
+            print("using log: ", mylog)
 
         # regex patterns for below.
         tcleanBeginRE = re.compile(r"Begin Task: tclean")
@@ -544,7 +544,7 @@ def tCleanTime(testDir):
         filein.close()
 
     else:
-        print "no path found"
+        print("no path found")
         allresults = {}
             
     return allresults
@@ -583,7 +583,7 @@ def tCleanTime_newlogs(testDir):
     import os.path
     import glob
     import re
-    import ipdb
+    #import ipdb
 
     mpiRE = re.compile(r"MPIServer-(?P<mpinum>\d+?)")
     mpiStopRE = re.compile(r"CASA Version")
@@ -629,7 +629,7 @@ def tCleanTime_newlogs(testDir):
                     tmpresults = parseLog_newlog(logfile.replace('.log','_'+mpistr+'.log'))
                     
                     for imagename in tmpresults.keys():
-                        if allresults.has_key(imagename):
+                        if imagename in allresults:
                             allresults[imagename][mpistr] = tmpresults[imagename]
                         else:
                             allresults[imagename] = {}
@@ -645,7 +645,7 @@ def tCleanTime_newlogs(testDir):
                 mpistr='mpi0'
 
                 for imagename in tmpresults.keys():
-                    if allresults.has_key(imagename):
+                    if imagename in allresults:
                         allresults[imagename][mpistr] = tmpresults[imagename]
                     else:
                         allresults[imagename] = {}
@@ -653,7 +653,7 @@ def tCleanTime_newlogs(testDir):
                     
 
     else:
-        print "no path found"
+        print("no path found")
         allresults = {}
             
     return allresults
@@ -668,7 +668,7 @@ def parseLog_newlog(logfile):
     import re
     from datetime import datetime
     import copy
-    import ipdb
+    #import ipdb
 
     # regex patterns for below.
     tcleanBeginRE = re.compile(r"Begin Task: tclean")
@@ -861,10 +861,10 @@ def parseLog_newlog(logfile):
                     cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
 
                     # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
-                    if cycleresults.has_key('startPrune1Time'):
+                    if 'startPrune1Time' in cycleresults:
                         # To keep this calculation consistent with the previous logs, the prune1Time is actually the Prune1Time+smooth1Time.
                         # I also calculate the smooth1Time, so that should give me how long the the smooth took compared to the prune+smooth.
-                        if cycleresults.has_key('startGrowTime'):
+                        if 'startGrowTime' in cycleresults:
                             cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
                         else:
                             cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
@@ -873,20 +873,20 @@ def parseLog_newlog(logfile):
                     cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
 
                     # The following might not always happen depending on how the auto-multithresh parameters are set.
-                    if cycleresults.has_key('startGrowTime'):
+                    if 'startGrowTime' in cycleresults:
                         cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
 
-                    if cycleresults.has_key('startPrune2Time'):
+                    if 'startPrune2Time' in cycleresults:
                         # Ditto the comments for prune1Time
-                        if cycleresults.has_key('startNegativeThresholdTime'):
+                        if 'startNegativeThresholdTime' in cycleresults:
                             cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
                         else:
                             cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
 
-                    if cycleresults.has_key('startSmooth2Time'):
+                    if 'startSmooth2Time' in cycleresults:
                         cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
 
-                    if cycleresults.has_key('startNegativeThresholdTime'):
+                    if 'startNegativeThresholdTime' in cycleresults:
                         cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
 
                     ## save major cycle information here
@@ -900,12 +900,12 @@ def parseLog_newlog(logfile):
                     cycleresults['endCleanTime'] = datetime.strptime(endCleanStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
                 # calculate times. Note that here I need to capture the case where the minor cycle doesn't happen.
-                if cycleresults.has_key('startMinorCycleTime'):
+                if 'startMinorCycleTime' in cycleresults:
                     cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
                 else: 
                     cycleresults['totalMasktime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
 
-                if cycleresults.has_key('startMajorCycleTime'):
+                if 'startMajorCycleTime' in cycleresults:
                     cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['startMajorCycleTime']
                 else:
                     cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
@@ -913,8 +913,8 @@ def parseLog_newlog(logfile):
                 cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
 
                 # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
-                if cycleresults.has_key('startPrune1Time'):
-                    if cycleresults.has_key('startGrowTime'):
+                if 'startPrune1Time' in cycleresults:
+                    if 'startGrowTime' in cycleresults:
                         cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
                     else:
                         cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
@@ -923,19 +923,19 @@ def parseLog_newlog(logfile):
                 cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
 
                 # The following might not always happen depending on how the auto-multithresh parameters are set.
-                if cycleresults.has_key('startGrowTime'):
+                if 'startGrowTime' in cycleresults:
                     cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
 
-                if cycleresults.has_key('startPrune2Time'):
-                    if cycleresults.has_key('startNegativeThresholdTime'):
+                if 'startPrune2Time' in cycleresults:
+                    if 'startNegativeThresholdTime' in cycleresults:
                         cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
                     else:
                         cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
 
-                if cycleresults.has_key('startSmooth2Time'):
+                if 'startSmooth2Time' in cycleresults:
                     cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
 
-                if cycleresults.has_key('startNegativeThresholdTime'):
+                if 'startNegativeThresholdTime' in cycleresults:
                     cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
 
                 ## save major cycle information here
@@ -971,7 +971,7 @@ def parseLog_newlog(logfile):
                 # variables. Include the stopreason variable
                 # to avoid the iter1 case where only the common beam is
                 # being applied and no cleaning is done.
-                if re.search('iter1',imagename) and results.has_key('stopreason'):
+                if ( re.search('iter1',imagename) and ('stopreason' in results) ):
                     allresults[imagename] = results
 
                 # clear for next clean run
@@ -1040,9 +1040,9 @@ def flattenTimingData(inDict):
     durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime','smooth1Time','smooth2Time','noiseTime']
     cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime','smooth1Time','smooth2Time','noiseTime','endNoiseTime','modelFlux']
 
-    for (project,images) in inDict.iteritems():
-        for (image,mpis) in images.iteritems():
-            for (mpi,data) in mpis.iteritems():
+    for (project,images) in inDict.items():
+        for (image,mpis) in images.items():
+            for (mpi,data) in mpis.items():
                 for cycle in map(str,range(0,int(data['ncycle'])+1)):
 
                     flatDict['project'].append(project)
@@ -1063,7 +1063,7 @@ def flattenTimingData(inDict):
 
                     # doing something a little bit fancy.
                     for akey in cycleKeys:
-                        if data[cycle].has_key(akey):
+                        if akey in data[cycle]:
                             if akey in durationKeys:
                                 flatDict[akey].append(float(data[cycle][akey].seconds))
                             else:
@@ -1199,7 +1199,7 @@ def extractBeamInfoFromLog(casalogfile,outfile):
 
      
     else:
-        print "Couldn't open file: " + casalogfile
+        print("Couldn't open file: " + casalogfile)
 
 
 #----------------------------------------------------------------------
@@ -1245,7 +1245,7 @@ def makeBeamInfoFiles(dataDir,stage=18):
             extractBeamInfoFromLog(casalogfile,outfile)
 
     else:
-        print "Data directory doesn't exist: " + dataDir
+        print("Data directory doesn't exist: " + dataDir)
             
 #----------------------------------------------------------------------
 
@@ -1309,8 +1309,8 @@ def modifyRobust(inScript,beamInfo,outScript,robust=2.0,ptsPerBeam=5.0):
                 bpa = bpaTmp
 
     if 'bmax' not in locals():
-        print "Given robust value not found in beam info file: ", beamInfo
-        print "exiting"
+        print("Given robust value not found in beam info file: ", beamInfo)
+        print("exiting")
     
     else:
         # let's get to work
@@ -1336,7 +1336,7 @@ def modifyRobust(inScript,beamInfo,outScript,robust=2.0,ptsPerBeam=5.0):
                     robustIn = findtclean.group('robust')
                     #print robustIn
                     if float(robustIn) == robust:
-                        print "Not changing script. Input and output robust are the same",robust
+                        print("Not changing script. Input and output robust are the same",robust)
                     else:
                         cellIn = float(findtclean.group('cell'))
                         imsize1In = float(findtclean.group('imsize1'))
@@ -1547,11 +1547,11 @@ def modifyParameters(inScript,outScript, parameters):
                     newstr = key+'='+str(value)
                     mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)
                     if mymatch:
-                        print "match found! modifying input parameter" 
+                        print("match found! modifying input parameter" )
                         line = line.replace(mymatch.group('mykey'),newstr)
                     else:
-                        print "no match found for "+key                        
-                        print "adding to parameter list"
+                        print("no match found for "+key)
+                        print("adding to parameter list")
                         line = line.replace(')',', '+newstr+')')
 
             fileout.write(line)
@@ -1625,3 +1625,34 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
 
 #----------------------------------------------------------------------
 
+def split_mpi_logs(log,n=8):
+
+    '''
+    split up mpi logs so that they make more sense
+
+    inlog: input log
+    n: number of cores, set to 8 by default. number of mpi servers is n-1
+
+    '''
+
+    import re
+
+    # opening up log files
+    inlog = open(log,'r')
+    outlog_mpi = [open(log.replace('.log','_mpi'+str(i)+'.log'),'w') for i in range(n)]
+
+    # setting up the regular expression
+    mpilineRE = re.compile(r"MPIServer-(?P<mpi>\d+)")
+
+    for line in inlog:
+        if mpilineRE.search(line):
+            mpi = int(mpilineRE.search(line).group('mpi'))
+            outlog_mpi[mpi].write(line)
+        else:
+            for i in range(0,n):
+                outlog_mpi[i].write(line)
+
+    # closing everything up
+    inlog.close()
+    for fh in outlog_mpi:
+        fh.close()
