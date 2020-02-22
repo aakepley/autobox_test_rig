@@ -453,18 +453,19 @@ def tCleanTime(testDir):
                         cycleresults['thresholdTime'] = cycleresults['startPrune1Time'] - cycleresults['maskStartTime']
                         cycleresults['cycleTime'] = cycleresults['endMajorCycleTime'] - cycleresults['maskStartTime']
 
-                        if cycleresults.has_key('startGrowTime'):
+                        #if cycleresults.has_key('startGrowTime'):
+                        if 'startGrowTime' in cycleresults.keys():
                             cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
                             cycleresults['growTime'] = cycleresults['startPrune2Time'] - cycleresults['startGrowTime']
 
-                            if cycleresults.has_key('startNegativeThresholdTime'):
+                            if 'startNegativeThresholdTime' in cycleresults.keys():
                                 cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
                             else:
                                 cycleresults['prune2Time'] = cycleresults['startMinorCycleTime'] - cycleresults['startPrune2Time']
                         else: 
                             cycleresults['prune1Time'] = cycleresults['startMinorCycleTime'] - cycleresults['startPrune1Time']
                    
-                        if cycleresults.has_key('negativeThresholdTime'):
+                        if 'negativeThresholdTime' in cycleresults.keys():
                             cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
 
                         ## save major cycle information here
@@ -483,18 +484,18 @@ def tCleanTime(testDir):
                     cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
 
 
-                    if cycleresults.has_key('startGrowTime'):
+                    if 'startGrowTime' in cycleresults.keys():
                         cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
                         cycleresults['growTime'] = cycleresults['startPrune2Time'] - cycleresults['startGrowTime']
 
-                        if cycleresults.has_key('startNegativeThresholdTime'):
+                        if 'startNegativeThresholdTime' in cycleresults.keys():
                                 cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
                         else:
                             cycleresults['prune2Time'] = cycleresults['endCleanTime'] - cycleresults['startPrune2Time']
                     else: 
                         cycleresults['prune1Time'] = cycleresults['endCleanTime'] - cycleresults['startPrune1Time']
 
-                    if cycleresults.has_key('startNegativeThresholdTime'):
+                    if 'startNegativeThresholdTime' in cycleresults.keys():
                         cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
                     
                     # get exit criteria
@@ -642,15 +643,16 @@ def tCleanTime_newlogs(testDir):
                 f.close()
 
                 tmpresults = parseLog_newlog(logfile)
-                mpistr='mpi0'
+                #mpistr='mpi0'
 
-                for imagename in tmpresults.keys():
-                    if imagename in allresults:
-                        allresults[imagename][mpistr] = tmpresults[imagename]
-                    else:
-                        allresults[imagename] = {}
-                        allresults[imagename][mpistr] = tmpresults[imagename]
-                    
+                #for imagename in tmpresults.keys():
+                #    if imagename in allresults:
+                #        allresults[imagename][mpistr] = tmpresults[imagename]
+                #    else:
+                #        allresults[imagename] = {}
+                #        allresults[imagename][mpistr] = tmpresults[imagename]
+                 
+                allresults = tmpresults
 
     else:
         print("no path found")
@@ -1080,6 +1082,101 @@ def flattenTimingData(inDict):
     
 
     return flatDict
+
+#----------------------------------------------------------------------
+
+def flattenTimingData_serial(inDict):
+    '''
+    flatten the array of dictionaries so that I can more easily plot
+    things. I'm assuming that it's a dictionary of dictionaries with
+    the top level dictionary being the project. I could also
+    potentially turn into an astropy table here.
+
+    I'm also thinking of turning the images into seconds, but could do
+    that earlier in the extract timing data. The latter is more effective.
+
+    '''
+
+    import numpy as np
+
+    flatDict = {'project': [],
+                'imagename': [],
+                'ncycle': [],
+                'stopreason': [],
+                'startTime': [],
+                'cycle': [],
+                'specmode': [],
+                'tcleanTime': [],
+                'endTime': [],
+                'startMinorCycleTime': [],
+                'cycleTime': [],
+                'startPrune2Time': [],
+                'startGrowTime': [],
+                'totalMaskTime': [],
+                'startPrune1Time': [],
+                'endMajorCycleTime': [],
+                'prune2Time': [],
+                'thresholdTime': [],
+                'startMajorCycleTime': [],
+                'prune1Time': [],
+                'maskStartTime': [],
+                'growTime': [],
+                'endCleanTime': [],
+                'startNegativeThresholdTime': [],
+                'endNegativeThresholdTime': [],
+                'negativeThresholdTime': [],
+                'smooth1Time':[],
+                'smooth2Time': [],
+                'startRestoreTime':[],
+                'endRestoreTime': [],
+                'restoreTime':[],
+                'noiseTime': [],
+                'endNoiseTime':[],
+                'modelFlux':[]}
+    
+    durationKeys = ['negativeThresholdTime','cycleTime','prune2Time','growTime','thresholdTime','prune1Time','totalMaskTime','smooth1Time','smooth2Time','noiseTime']
+    cycleKeys = ['startMinorCycleTime', 'cycleTime', 'startPrune2Time', 'startGrowTime', 'totalMaskTime', 'startPrune1Time', 'endMajorCycleTime', 'prune2Time', 'thresholdTime', 'startMajorCycleTime', 'prune1Time', 'maskStartTime', 'growTime','negativeThresholdTime','smooth1Time','smooth2Time','noiseTime','endNoiseTime','modelFlux']
+
+    for (project,images) in inDict.items():
+        for (image,data) in images.items():
+            for cycle in map(str,range(0,int(data['ncycle'])+1)):
+
+                flatDict['project'].append(project)
+                flatDict['imagename'].append(image)
+                flatDict['cycle'].append(cycle)
+
+                # Get the base info from the top level of the data structure
+                flatDict['ncycle'].append(data['ncycle'])
+                flatDict['stopreason'].append(data['stopreason'])
+                flatDict['startTime'].append(data['startTime'])
+                flatDict['specmode'].append(data['specmode'])
+                flatDict['tcleanTime'].append(float(data['tcleanTime'].seconds))
+                flatDict['endTime'].append(data['endTime'])
+                flatDict['startRestoreTime'].append(data['startRestoreTime'])
+                flatDict['endRestoreTime'].append(data['endRestoreTime'])
+                flatDict['restoreTime'].append(data['restoreTime'])
+
+                # doing something a little bit fancy.
+                for akey in cycleKeys:
+                    if akey in data[cycle]:
+                        if akey in durationKeys:
+                            flatDict[akey].append(float(data[cycle][akey].seconds))
+                        else:
+                            flatDict[akey].append(data[cycle][akey])
+                    else:
+                        #print "Key", akey, " not in cycle. Inserting blank value"
+                        flatDict[akey].append(999)
+
+    # now I need to turn everything into numpy arrays so that they work in matplotlib.
+    for akey in flatDict.keys():
+        tmp = np.array(flatDict[akey])
+        flatDict[akey] = np.ma.array(tmp, mask=(tmp == 999))
+
+    
+
+    return flatDict
+
+
 
 #----------------------------------------------------------------------
 
