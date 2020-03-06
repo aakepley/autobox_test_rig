@@ -124,6 +124,8 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         filein = open(casalogfile,'r')
         fileout = open(outfile,'w')
 
+        fileout.write('import shutil\n')
+
         # this may need to be modified for mfs images
         imageExt = ['.pb','.psf','.residual','.sumwt','.weight']
         
@@ -1753,3 +1755,139 @@ def split_mpi_logs(log,n=8):
     inlog.close()
     for fh in outlog_mpi:
         fh.close()
+
+
+# ----------------------------------------------------------------------
+
+def parseLog_newlog_simple(logfile):
+    '''
+    Parse an individual log file and return an object with the data in it
+    '''
+    
+    import re
+    from datetime import datetime
+    import copy
+    #import ipdb
+
+    # regex patterns for below.
+    tcleanBeginRE = re.compile(r"Begin Task: tclean")
+
+    imagenameRE = re.compile(r'imagename=(\"|\')(?P<imagename>.*?)(\"|\')')
+    specmodeRE = re.compile(r'specmode=(\"|\')(?P<specmode>.*?)(\"|\')')
+
+    imsizeRE = re.compile(r'imsize=\[(?P<imsize1>.*?),(?P<imsize2>.*?)\]')
+    nchanRE = re.compile(r'nchan=(?P<nchan>.*?),')
+
+    tcleanEndRE = re.compile(r"End Task: tclean")
+    
+    dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+
+
+    # open file
+    filein = open(logfile,'r')
+
+    #initialize loop status        
+    imagename = ''
+    allresults = {}
+    results = {}
+    specmode=''
+
+    # go through file
+    for line in filein:
+
+        # capture start of tclean
+        if tcleanBeginRE.search(line):
+            startTimeStr = dateFmtRE.search(line)
+            if startTimeStr:                
+                results['startTime'] = datetime.strptime(startTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+        # capture image name
+        if imagenameRE.search(line):
+            imagename = imagenameRE.search(line).group('imagename')
+
+        # capture line vs. continuum
+        if specmodeRE.search(line):
+            if re.match(specmodeRE.search(line).group('specmode'),'cube'):
+                results['specmode']='cube'
+            else:
+                results['specmode']='cont'
+
+        # capture imsize
+        if imsizeRE.search(line):
+            results['imsize'] = [int(imsizeRE.search(line).group('imsize1')),int(imsizeRE.search(line).group('imsize2'))] 
+
+        # capture nchan
+        if nchanRE.search(line):
+            results['nchan'] = int(nchanRE.search(line).group('nchan'))
+
+        # capture the end of the clean
+        if tcleanEndRE.search(line):
+            endTimeStr = dateFmtRE.search(line)
+            if endTimeStr:
+                results['endTime'] = datetime.strptime(endTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+            # calculate overall statistics.
+            results['tcleanTime'] = results['endTime']-results['startTime']
+
+            if results['specmode'] == 'cube':
+                results['totalSize'] = results['imsize'][0] * results['imsize'][1] * results['nchan']
+            else:
+                results['totalSize'] = results['imsize'][0] * results['imsize'][1] 
+                
+            results['aspectRatio'] = float(max(results['imsize']))/float(min(results['imsize']))
+
+            allresults[imagename] = results
+
+            results = {}
+            specmode=''
+            imagename=''
+
+    filein.close()
+
+    return allresults
+
+def tCleanTime_newlogs_simple(testDir):
+    '''
+    Time how long tclean takes
+    '''
+
+    # Purpose: mine logs for information about timing.
+    
+    # Input: 
+
+    #   testDir: I'm assuming that the testDirectory contains one
+    #   casalog file, but may want to add the option to specify a log
+
+    # Output:
+
+    #    a structure with all the timing information, plus vital stats
+    #    on the data set. 
+    #
+    #  Date             Programmer              Description of Changes
+    #----------------------------------------------------------------------
+    # 2/24/2020         A.A. Kepley             Original Code based on tCleanTime_newlogs
+
+    import os
+    import os.path
+    import glob
+    import re
+    #import ipdb
+
+
+    if os.path.exists(testDir):
+    
+        # initialize lists
+        allresults = {}
+
+        # get the file name 
+        logfilelist = glob.glob(os.path.join(testDir,"casa-????????-??????.log"))
+
+        # go through logs and extract info.
+        for logfile in logfilelist:
+
+            allresults = parseLog_newlog_simple(logfile)
+    else:
+        print("no path found")
+        allresults = {}
+            
+    return allresults

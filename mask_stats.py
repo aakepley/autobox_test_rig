@@ -11,6 +11,9 @@
 # creating an ia tool to use.
 from taskinit import *
 ia = iatool()
+from immath_cli import immath_cli as immath
+from imstat_cli import imstat_cli as imstat
+
 
 import os.path
 import numpy as np
@@ -599,3 +602,127 @@ def runDiffSpectra(baseDir,testDir, projects=[],exclude=[],labels=['linear','nea
                         
                         if os.path.exists(testImagePath) and os.path.exists(baseImagePath):
                             plotDiffSpect(baseImagePath,testImagePath,plotname=image,**kwargs)
+
+#----------------------------------------------------------------------
+
+def calcDiffImage(baseImage,testImage,diffImage='test.diff'):
+    ''' 
+    calculate the image difference in two different primary beam ranges.
+
+    Date        Programmer              Changes
+    ----------------------------------------------------------------------
+    2/22/2020    A.A. Kepley             Original Code
+    '''
+
+    import analyzemsimage as ami
+
+    if not os.path.exists(diffImage):
+
+        # using statistics across cube rather than per channel
+        stats = imstat(baseImage)
+        sncut = 7.0*stats['medabsdevmed']*1.4286 # 7 sigma. could probably change to lower
+
+        immath(imagename=[baseImage,testImage],mode='evalexpr',
+               expr='100*(IM1-IM0)/IM0',outfile=diffImage, ## shold I flip this for consistency with sims?
+               mask = '\"'+baseImage+'\" >' + str(sncut[0])+' && \"'+testImage+'\" >'+str(sncut[0]))
+
+
+    pbImage = baseImage.replace('.image','.pb')
+    if os.path.exists(pbImage):
+
+        statspdiff = ami.runImstat(Image=diffImage,
+                                   PB=pbImage,
+                                   innerAnnulusLevel=1.0, level=0.5)
+
+        outstatspdiff = ami.runImstat(Image=diffImage,
+                                      PB=pbImage,
+                                      innerAnnulusLevel=0.5, level=0.2)
+    else:
+
+        print("PB not found. Not calculating stats.")
+        
+        statspdiff = None
+        outstatspdiff = None
+        
+    return statspdiff, outstatspdiff
+
+
+def runImageDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
+    '''
+    Create plots of the difference stats for all projects
+    
+    Date        Programmer              Changes
+    ----------------------------------------------------------------------
+    2/22/2020   A.A. Kepley             Original Code
+    '''
+
+    import matplotlib.pyplot as plt
+    import csv
+
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+ 
+    outfile='image_diff.csv'
+
+    if os.path.exists(baseDir):
+        dataDirs = os.listdir(baseDir)
+
+        if not projects:
+            projects = dataDirs
+
+        print dataDirs
+
+        # open output file for writing
+        with open(outfile,'w') as csvfile:
+            writer = csv.writer(csvfile, delimiter=',')
+            
+            writer.writerow(["# Base :" + baseDir])
+            writer.writerow(["# Test :" + testDir])
+            writer.writerow(["project","image","imsize1","imsize2","nchan","pdiff_min","pdiff_med","pdiff_max","pdiff_out_min","pdiff_out_med","pdiff_out_max"])
+            
+            for mydir in dataDirs:
+                if (projectRE.match(mydir)) and (mydir in projects) and (mydir not in exclude):
+                    baseProject = os.path.join(baseDir,mydir)
+                    testProject = os.path.join(testDir,mydir)
+
+                    baseImageList = [os.path.basename(image) for image in glob.glob(os.path.join(baseProject,"*iter1.image"))] 
+
+                    baseImageList.extend([os.path.basename(image) for image in glob.glob(os.path.join(baseProject,"*iter1.image.tt0"))])
+
+                    if os.path.exists(testProject):            
+                        for image in baseImageList:
+                            baseImagePath = os.path.join(baseProject,image)
+                            testImagePath = os.path.join(testProject,image)     
+
+                            if os.path.exists(testImagePath) and os.path.exists(baseImagePath):
+
+                                ia.open(baseImagePath)
+                                baseShape = ia.shape()
+                                ia.close()
+                                
+                                diffImage = image+'.diff'
+                                statspdiff, outstatspdiff = calcDiffImage(baseImagePath,testImagePath,diffImage=diffImage)
+                                
+                                if statspdiff:
+                                    if (len(statspdiff['rms'])>0) and (len(outstatspdiff['rms']) > 0):
+
+                                        writer.writerow([mydir,image, 
+                                                         baseShape[0],baseShape[1], baseShape[3],
+                                                         statspdiff['min'][0],
+                                                         statspdiff['median'][0],
+                                                         statspdiff['max'][0],
+                                                         outstatspdiff['min'][0],
+                                                         outstatspdiff['median'][0],
+                                                         outstatspdiff['max']][0])
+
+                                    elif len(statspdiff['rms'])>0:
+                                        writer.writerow([mydir,image,
+                                                         baseShape[0],baseShape[1],baseShape[3],
+                                                         statspdiff['min'][0],
+                                                         statspdiff['median'][0],
+                                                         statspdiff['max'][0],"" ,"" ,"" ])
+                                    else:
+                                        writer.writerow([mydir,image,
+                                                         baseShape[0],baseShape[1],baseShape[3],
+                                                         "" ,"" ,"" ,
+                                                         "" ,"" ,"" ])
+
