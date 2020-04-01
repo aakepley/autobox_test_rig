@@ -669,8 +669,6 @@ def runImageDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
         if not projects:
             projects = dataDirs
 
-        print dataDirs
-
         # open output file for writing
         with open(outfile,'w') as csvfile:
             writer = csv.writer(csvfile, delimiter=',')
@@ -726,3 +724,52 @@ def runImageDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
                                                          "" ,"" ,"" ,
                                                          "" ,"" ,"" ])
 
+
+
+
+def runPBDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
+    '''
+    Create plots of the difference in the primary beam for all data sets.
+    
+    Date        Programmer              Changes
+    ----------------------------------------------------------------------
+    2/22/2020   A.A. Kepley             Original Code
+    '''
+
+    import matplotlib.pyplot as plt
+
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+
+    if os.path.exists(baseDir):
+        dataDirs = os.listdir(baseDir)
+
+        if not projects:
+            projects = dataDirs        
+
+        for mydir in dataDirs:
+            if (projectRE.match(mydir)) and (mydir in projects) and (mydir not in exclude):
+                baseProject = os.path.join(baseDir,mydir)
+                testProject = os.path.join(testDir,mydir)
+                
+                baseImageList = [os.path.basename(image) for image in glob.glob(os.path.join(baseProject,"*iter1.pb"))] 
+
+                baseImageList.extend([os.path.basename(image) for image in glob.glob(os.path.join(baseProject,"*iter1.pb.tt0"))])
+
+
+                if os.path.exists(testProject):            
+                    for image in baseImageList:
+                        baseImagePath = os.path.join(baseProject,image)
+                        testImagePath = os.path.join(testProject,image)     
+
+                        if os.path.exists(testImagePath) and os.path.exists(baseImagePath):
+                                
+                            diffImage = image+'.diff'
+
+                            # make pb diff image only for first channel.
+                            immath(imagename=[baseImagePath,testImagePath],mode='evalexpr',
+                                   expr='100*(IM1-IM0)/IM0',outfile=diffImage,chans='0')
+                            
+                            au.imviewField(diffImage,
+                                           minIntensity=-1, maxIntensity=1,
+                                           levels=[0.5], unit=1.0, contourThickness=2,
+                                           plotfile=diffImage+'.imview.scaled.png')

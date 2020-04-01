@@ -107,9 +107,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
     if os.path.exists(casalogfile):
     
         tcleanCmd = re.compile(r"""
-        (?P<cmd>tclean\(   ## tclean command
-        .*                 ## skip junk in command
-        vis=(?P<vis>\[.*?\]) ## visibility name
+        (?P<cmd>tclean\(vis=(?P<vis>\[.*?\]) ## visibility name
         .*                 ## skip junk in command
         imagename='(?P<imagename>.*?)' ## imagename
         .*
@@ -120,7 +118,6 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
 
         ntermsRE = re.compile("nterms=(?P<nterms>.*?),")
         copytreeRE = re.compile("(?P<copytree>copytree\(src=(?P<src>'.*?'),.*\))")
-
         filein = open(casalogfile,'r')
         fileout = open(outfile,'w')
 
@@ -130,6 +127,8 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         imageExt = ['.pb','.psf','.residual','.sumwt','.weight']
         
         copytreePresent = False
+        
+        lastImageIter0 = False
 
         for line in filein:
 
@@ -150,7 +149,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                 newcmd = cmd.replace(vis,repr(newvis))
 
                 # follow the iter0 with commands to copy iter0 to iter1 if no copytree commands are present.
-                if re.search('iter1',imagename) and not copytreePresent:
+                if re.search('iter1',imagename) and not copytreePresent and lastImageIter0:
                     
                     # dealing with the mtmfs case.
                     if deconvolver == 'mtmfs':
@@ -187,6 +186,11 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                 fileout.write(newcmd+'\n\n')
 
 
+                if re.search('iter0',imagename):
+                    lastImageIter0 = True
+                else:
+                    lastImageIter0 = False
+
             # find copy tree command
             findcopytree = copytreeRE.search(line)
 
@@ -196,6 +200,8 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                 fileout.write("    shutil."+findcopytree.group('copytree')+"\n\n")
                 copytreePresent = True
     
+           
+
         filein.close()
         fileout.close()
 
