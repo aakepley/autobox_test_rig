@@ -122,9 +122,11 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         fileout = open(outfile,'w')
 
         fileout.write('import shutil\n')
+        fileout.write('import os\n')
+        fileout.write('\n')
 
         # this may need to be modified for mfs images
-        imageExt = ['.pb','.psf','.residual','.sumwt','.weight']
+        imageExt = ['.pb','.psf','.residual','.sumwt','.weight','.workdirectory']
         
         copytreePresent = False
         
@@ -156,29 +158,28 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
 
                         nterms = ntermsRE.search(line).group('nterms')
 
-                        for ext in imageExt:
-                            if ext == '.pb':
-                                fileout.write("os.system('cp -ir "+imagename+ext+'.tt0'+' '+ imagename.replace('iter0','iter1')+ext+'.tt0'+"')\n")
-                            if ext == '.psf':
-                                for term in range(int(nterms)+1):
-                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+                        for ext in imageExt: 
+                            if  ext == '.pb':
+                                fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+".tt0"+"):\n")
+                                fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+".tt0, dst="+imagename+ext+".tt0)\n")
+                            if ext == '.workdirectory':
 
-                            if ext == '.residual':
-                                for term in range(int(nterms)):
-                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+                                fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+"):\n")
+                                fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+", dst="+imagename+ext+")\n")
 
-                            if ext == '.sumwt':
+                            else:
                                 for term in range(int(nterms)+1):
-                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
-
-                            if ext == '.weight':
-                                for term in range(int(nterms)+1):
-                                    fileout.write("os.system('cp -ir "+imagename+ext+'.tt'+str(term)+' '+ imagename.replace('iter0','iter1')+ext+'.tt'+str(term)+"')\n")
+                                    fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+"):\n")
+                                    fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+", dst="+imagename+ext+".tt"+str(term)+")\n")
+                                    
 
                     # dealing with the rest of the cases.            
                     else:
                         for ext in imageExt:
-                            fileout.write("os.system('cp -ir "+imagename+ext+' '+ imagename.replace('iter0','iter1')+ext+"')\n")
+                            
+                            fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+"):\n")
+                            fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+", dst="+imagename+ext+")\n")
+
                     
                     fileout.write('\n')
 
