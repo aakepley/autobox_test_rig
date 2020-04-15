@@ -126,7 +126,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
         fileout.write('\n')
 
         # this may need to be modified for mfs images
-        imageExt = ['.pb','.psf','.residual','.sumwt','.weight','.workdirectory']
+        imageExt = ['.pb','.psf','.residual','.sumwt','.weight','.workdirectory','.gridwt_moswt']
         
         copytreePresent = False
         
@@ -160,25 +160,31 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
 
                         for ext in imageExt: 
                             if  ext == '.pb':
-                                fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+".tt0"+"):\n")
-                                fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+".tt0, dst="+imagename+ext+".tt0)\n")
-                            if ext == '.workdirectory':
+                                fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+".tt0"+"'):\n")
+                                fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+".tt0', dst='"+imagename+ext+".tt0')\n")
+                           
+                            elif ((ext == '.workdirectory') or (ext == '.gridwt_moswt')):
 
-                                fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+"):\n")
-                                fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+", dst="+imagename+ext+")\n")
+                                fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
+                                fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+"', dst='"+imagename+ext+"')\n")
+
+                            elif ((ext == '.residual') or (ext == '.model')):
+                                  for term in range(int(nterms)):
+                                      fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+"'):\n")
+                                      fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+"', dst='"+imagename+ext+".tt"+str(term)+"')\n")
 
                             else:
                                 for term in range(int(nterms)+1):
-                                    fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+"):\n")
-                                    fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+", dst="+imagename+ext+".tt"+str(term)+")\n")
+                                    fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+"'):\n")
+                                    fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+".tt"+str(term)+"', dst='"+imagename+ext+".tt"+str(term)+"')\n")
                                     
 
                     # dealing with the rest of the cases.            
                     else:
                         for ext in imageExt:
                             
-                            fileout.write("if os.path.exists("+imagename.replace('iter1','iter0')+ext+"):\n")
-                            fileout.write("\t shutil.copytree(src="+imagename.replace('iter1','iter0')+ext+", dst="+imagename+ext+")\n")
+                            fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
+                            fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+"', dst='"+imagename+ext+"')\n")
 
                     
                     fileout.write('\n')
