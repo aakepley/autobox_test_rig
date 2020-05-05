@@ -80,12 +80,12 @@ def compareMask(baseMaskPath,testMaskPath,writer,label=None):
         if nPixMask > 0:
             fracDiff = nPixDiff/nPixMask
             if label:
-                writer.writerow([label,mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+                writer.writerow([label,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
             else:
                  writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
         else:
             if label:
-                writer.writerow([label,mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+                writer.writerow([label,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
             else:
                 writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
 
@@ -159,6 +159,70 @@ def runMaskComparison(baseDir, testDir, outFile,projects=None):
     else:
         print "test directory doesn't exist:", mydir
 
+
+#----------------------------------------------------------------------
+
+def runMaskComparisonPipe(baseDir, testDir, outFile,projects=None):
+    '''
+
+    compare masks between pipeline runs.  I'm assuming all related
+    pipeline runs are in one directory.
+
+    '''
+    
+    # Purpose: compare masks between pipeline runs. Need to take into
+    # account the directory structure for the pipeline runs and the
+    # naming conventions (which includes time that the pipeline was run).
+
+    # Date        Programmer      Changes
+    #----------------------------------------------------------------------
+    # 5/4/2020    A.A. Kepley     Original Code
+    
+    import csv
+
+    projectRE = re.compile("(?P<project>\w{4}\.\w\.\d{5}\.\w)_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+ 
+    if os.path.exists(baseDir):
+        dataDirs = glob.glob(os.path.join(baseDir,"????.?.?????.?_????_??_??T??_??_??.???"))
+
+        dataDirs = [os.path.basename(mydir) for mydir in dataDirs]
+
+        if not projects:
+            projects = dataDirs
+        
+        with open(outFile,'w') as csvfile:
+            writer = csv.writer(csvfile,delimiter=',')
+
+            writer.writerow(["# Base: "+baseDir])
+            writer.writerow(["# Test: "+testDir])
+            writer.writerow(["Project","Mask","nPixMaskBase","nPixMaskTest","nPixDiff","nPixDiffBase","nPixDiffTest","fracDiff"])
+
+            for mydir in dataDirs:
+                if mydir in projects:
+                    projectName = projectRE.match(mydir).group('project')
+
+                    baseProject = glob.glob(os.path.join(baseDir,mydir))[0]
+
+                    SOUS = os.path.split(glob.glob(os.path.join(baseProject,"SOUS*"))[0])[1]
+                    GOUS = os.path.split(glob.glob(os.path.join(baseProject,SOUS,"GOUS*"))[0])[1]
+                    MOUS = os.path.split(glob.glob(os.path.join(baseProject,SOUS,GOUS,"MOUS*"))[0])[1]
+
+                    baseMaskList = [os.path.basename(mask) for mask in glob.glob(os.path.join(baseProject,"SOUS*","GOUS*","MOUS*","working","*iter1.mask"))]       
+                    
+
+                    testProject = glob.glob(os.path.join(testDir,projectName+"_????_??_??T??_??_??.???"))
+                
+                    if testProject:
+                        testProject = testProject[0]
+                        for mask in baseMaskList:
+                            baseMaskPath = os.path.join(baseProject,SOUS,GOUS,MOUS,"working",mask)
+                            testMaskPath = os.path.join(testProject,SOUS,GOUS,MOUS,"working",mask)
+                            compareMask(baseMaskPath, testMaskPath, writer, label=projectName)
+                    else:
+                        print "no corresponding test project: ", mydir
+    
+    else:
+        print "base directory doesn't exist:", baseDir
 
 #----------------------------------------------------------------------
 
