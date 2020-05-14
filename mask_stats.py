@@ -127,7 +127,7 @@ def runMaskComparison(baseDir, testDir, outFile,projects=None):
 
     import csv
 
-    projectRE = re.compile("\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
  
     if os.path.exists(baseDir):
         dataDirs = os.listdir(baseDir)

@@ -174,8 +174,7 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                                 fileout.write("\t\t iter0 = os.path.join(iter0work,mydir)\n")
                                 fileout.write("\t\t iter1 = os.path.join(iter1work,mydir.replace('iter0','iter1'))\n")
                                 fileout.write("\t\t shutil.copytree(src=iter0, dst=iter1)\n")
-                                fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
-                                fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+"', dst='"+imagename+ext+"')\n")
+
                             elif ext == '.gridwt_moswt':
 
                                 fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
@@ -1929,3 +1928,114 @@ def tCleanTime_newlogs_simple(testDir):
         allresults = {}
             
     return allresults
+
+# ----------------------------------------------------------------------
+
+def generatePipeScript(dataDir, outDir, scriptName='test.py',parameters=None):
+    '''
+    generate a simple imaging-only pipeline script
+    '''
+    
+    import os
+
+    scriptStr = '''
+import glob
+import os
+    
+_rethrow_casa_exceptions = True
+    
+dataDir = '{0:s}'
+
+context = h_init()
+    
+try:
+    myvis = glob.glob(os.path.join(dataDir,"*target.ms"))
+    hifa_importdata(vis=myvis,pipelinemode="automatic",dbservice=False, asimaging=True)
+'''.format(dataDir)
+
+    if parameters:
+        
+        for param in parameters:         
+            for key in param.keys():
+                if 'parameterStr' in locals():
+                    parameterStr.append(','+key+'='+str(param[key]))
+                else:
+                    parameterStr = key+'='+str(param[key])
+
+        imagingStr = '''
+    hif_makeimlist(specmode='mfs')
+    hif_makeimages(pipelinemode="automatic",{0:s})
+    hif_makeimlist(specmode='cont')
+    hif_makeimages(pipelinemode="automatic",{0:s})
+    hif_makeimlist(specmode='cube')
+    hif_makeimages(pipelinemode="automatic",{0:s})
+    #hif_makeimlist(specmode='repBW')
+    #hif_makeimages(pipelinemode="automatic",{0:s})
+    hifa_exportdata(pipelinemode="automatic")
+finally:
+    h_save()
+'''.format(parameterStr)
+
+    else:
+        imagingStr = '''
+    hif_makeimlist(specmode='mfs')
+    hif_makeimages(pipelinemode="automatic")
+    hif_makeimlist(specmode='cont')
+    hif_makeimages(pipelinemode="automatic")
+    hif_makeimlist(specmode='cube')
+    hif_makeimages(pipelinemode="automatic")
+    #hif_makeimlist(specmode='repBW')
+    #hif_makeimages(pipelinemode="automatic")
+    hifa_exportdata(pipelinemode="automatic")
+finally:
+    h_save()
+'''
+
+    fout = open(os.path.join(outDir,scriptName),'w')
+    fout.write(scriptStr)
+    fout.write(imagingStr)
+    fout.close()
+
+
+def setupPipeTest(benchmarkDir, testDir, parameters=None):
+    '''
+    Automatically populate a test directory with directories for
+    individual data sets and copies over the relevant pipeline scripts.
+    
+    '''
+
+    import shutil
+    import glob
+    import os
+    import os.path
+    import re
+    
+    projectRE = re.compile("(?P<project>\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3})")
+
+    # if the benchmark directory exists
+    if os.path.exists(benchmarkDir):
+
+        # get all the benchmarks
+        dataDirs = os.listdir(benchmarkDir)
+        
+        # go to test directory, create directory structure, and copy scripts
+        currentDir = os.getcwd()
+
+        if not os.path.exists(testDir):
+            os.mkdir(testDir)
+
+        os.chdir(testDir)
+        for mydir in dataDirs:
+
+             if not os.path.exists(mydir):
+                os.mkdir(mydir)
+            
+             scriptDir = os.path.join(testDir,mydir)
+             dataDir = os.path.join(benchmarkDir,mydir)
+
+             project = projectRE.match(mydir).group('project')
+
+             generatePipeScript(dataDir, scriptDir, scriptName=project+'.py',parameters=parameters)
+
+        # switch back to original directory
+        os.chdir(currentDir)
