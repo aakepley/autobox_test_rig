@@ -226,7 +226,7 @@ def runMaskComparisonPipe(baseDir, testDir, outFile,projects=None):
 
 #----------------------------------------------------------------------
 
-def calculateStats(image, mask=None, pb=None, pblimit=0.2):
+def calculate2DStats(image, mask=None, pb=None, pblimit=0.2):
     '''
 
     calculate the stats for the image outside the clean mask and
@@ -248,9 +248,10 @@ def calculateStats(image, mask=None, pb=None, pblimit=0.2):
         ia.open(image)
         stats = ia.statistics(axes=[0,1],robust=True,algorithm='chauvenet',maxiter=5)
         ia.close()
-        ia.done()
+        ia.done()    
 
     return stats
+
 
 def getMaskPixels(mask):
     '''
@@ -377,7 +378,7 @@ def runCubeMaskComparison(baseDir,testDir,projects=[],exclude=[]):
 
     '''
 
-    projectRE = re.compile("\d{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
  
     if os.path.exists(baseDir):
         dataDirs = os.listdir(baseDir)
@@ -431,7 +432,7 @@ def runCubeMaskComparison(baseDir,testDir,projects=[],exclude=[]):
 #----------------------------------------------------------------------
 
 
-def runImageStats(baseDir, projects=[],exclude=[]):
+def runImageStatsPlots(baseDir, projects=[],exclude=[]):
     '''
     Create plots of noise for each data set
     
@@ -837,3 +838,110 @@ def runPBDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
                                            minIntensity=-1, maxIntensity=1,
                                            levels=[0.5], unit=1.0, contourThickness=2,
                                            plotfile=diffImage+'.imview.scaled.png')
+
+
+#----------------------------------------------------------------------
+
+def runStatsComp(baseDir, testDir, outFile, projects=None):
+
+    '''
+    compare the stats between different benchmark runs.
+
+    '''
+
+    import csv
+    import math
+
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+ 
+    if os.path.exists(baseDir):
+        dataDirs = os.listdir(baseDir)
+
+        if not projects:
+            projects = dataDirs
+        
+        with open(outFile,'w') as csvfile:
+            writer = csv.writer(csvfile,delimiter=',')
+
+            writer.writerow(["# Base: "+baseDir])
+            writer.writerow(["# Test: "+testDir])
+            writer.writerow(["Project","Image","Min_Base","Min_Test","Pdiff_Min",
+                             "Max_Base","Max_Test","Pdiff_Max",
+                             "RMS_Base","RMS_Test","Pdiff_RMS",
+                             "Mean_Base","Mean_Test","Pdiff_Mean",
+                             "Bmaj_base","Bmaj_test","Pdiff_Bmaj",
+                             "Bmin_base","Bmin_test","Pdiff_Bmin",
+                             "Bpa_base","Bpa_test","Pdiff_Ppa",
+                             "Barea_base","Barea_test","Pdiff_Barea"])
+
+            for mydir in dataDirs:
+                if (projectRE.match(mydir)) and (mydir in projects):
+                    baseProject = os.path.join(baseDir,mydir)
+
+                    baseImageListLong = glob.glob(os.path.join(baseProject,"*.image"))
+                    baseImageListLong.extend(glob.glob(os.path.join(baseProject,"*.image.tt0")))
+                    baseImageList = [os.path.basename(image) for (image) in baseImageListLong]
+
+                    testProject = os.path.join(testDir,mydir)
+                    
+                    if os.path.exists(testProject):            
+                        for image in baseImageList:
+                            baseImagePath = os.path.join(baseProject,image)
+                            testImagePath = os.path.join(testProject,image)     
+                            
+                            ia.open(baseImagePath)
+                            stats_base = ia.statistics()
+                            
+                            beam_base = ia.restoringbeam()
+
+                            if re.search("cube",image):
+                                stats_base_perchan = ia.statistics(axes=[0,1])
+
+                            ia.close()
+                            ia.done()
+
+                            ia.open(testImagePath)
+                            stats_test = ia.statistics()
+
+                            beam_test = ia.restoringbeam()
+
+                            if re.search("cube",image):
+                                stats_test_perchan = ia.statistics(axes=[0,1])
+
+                            ia.close()
+                            ia.done()
+
+                            beamarea_base = math.pi * beam_base['major']['value'] * beam_base['minor']['value'] / (4.0 * math.log(2.0))
+                            beamarea_test = math.pi * beam_test['major']['value'] * beam_test['minor']['value'] / (4.0 * math.log(2.0))
+
+                            writer.writerow([mydir,image,
+                                             stats_base['min'][0], stats_test['min'][0], 
+                                             abs(stats_test['min'][0] - stats_base['min'][0])/abs(stats_base['min'][0]),
+                                             stats_base['max'][0], stats_test['max'][0], 
+                                             abs(stats_test['max'][0] - stats_base['max'][0])/abs(stats_base['max'][0]),
+                                             stats_base['rms'][0], stats_test['rms'][0], 
+                                             abs(stats_test['rms'][0] - stats_base['rms'][0])/abs(stats_base['rms'][0]), 
+                                             stats_base['mean'][0], stats_test['mean'][0],
+                                             abs(stats_test['mean'][0] - stats_base['mean'][0])/abs(stats_base['mean'][0]),
+                                             beam_base['major']['value'], beam_test['major']['value'],
+                                             abs(beam_test['major']['value']-beam_base['major']['value'])/abs(beam_base['major']['value']),
+                                             beam_base['minor']['value'], beam_test['minor']['value'],
+                                             abs(beam_test['minor']['value']-beam_base['minor']['value'])/abs(beam_base['minor']['value']),
+                                             beam_base['positionangle']['value'], beam_test['positionangle']['value'],
+                                             abs(beam_test['positionangle']['value']-beam_base['positionangle']['value'])/abs(beam_base['positionangle']['value']),
+                                             beamarea_base, beamarea_test,
+                                             abs(beamarea_test - beamarea_base)/abs(beamarea_base)])
+                                            
+                    else:
+                        print "no corresponding test project: ", mydir
+    
+    else:
+        print "test directory doesn't exist:", mydir
+
+
+def plotStatsDiff(base_perchan, test_perchan,title='test',binsize=1.0):
+    '''
+    plot the differences in the stats per channel
+    '''
+
+    pass
