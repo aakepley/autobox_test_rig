@@ -1,4 +1,4 @@
-def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
+def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False):
     '''
     copy the *target.ms and casalog data from imaging stages of a pipeline
     run and put them in their own test directory
@@ -63,6 +63,13 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33]):
             if not os.path.exists(outStageLog):
                 print("Copying over stage " + str(stage)+ " log" )
                 shutil.copy(stageLog,outStageLog)
+
+            if copyCont:
+                contFile = os.path.join(os.path.split(pipelineDir)[0],'cont.dat')
+                outContFile = os.path.join(benchmarkDir,'cont.dat')
+                if not os.path.exists(outContFile):
+                    print("Copying over cont.dat file")
+                    shutil.copy(contFile,outContFile)
 
             # extracting tclean commands from the casalog file
             outTcleanCmd = os.path.join(benchmarkDir,benchmarkName+'_stage'+str(stage)+'.py')
@@ -2023,8 +2030,8 @@ def setupPipeTest(benchmarkDir, testDir, parameters=None):
 
         if not os.path.exists(testDir):
             os.mkdir(testDir)
-
         os.chdir(testDir)
+
         for mydir in dataDirs:
 
              if not os.path.exists(mydir):
@@ -2036,6 +2043,9 @@ def setupPipeTest(benchmarkDir, testDir, parameters=None):
              project = projectRE.match(mydir).group('project')
 
              generatePipeScript(dataDir, scriptDir, scriptName=project+'.py',parameters=parameters)
+
+             shutil.copy(os.path.join(dataDir,'cont.dat'),
+                         os.path.join(scriptDir,'cont.dat'))
 
         # switch back to original directory
         os.chdir(currentDir)
