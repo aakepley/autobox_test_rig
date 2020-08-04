@@ -1938,7 +1938,7 @@ def tCleanTime_newlogs_simple(testDir):
 
 # ----------------------------------------------------------------------
 
-def generatePipeScript(dataDir, outDir, scriptName='test.py',parameters=None):
+def generatePipeScript(dataDir, outDir, scriptName='test.py',mfsParameters=None,cubeParameters=None):
     '''
     generate a simple imaging-only pipeline script
     '''
@@ -1960,20 +1960,43 @@ try:
     hifa_importdata(vis=myvis,pipelinemode="automatic",dbservice=False, asimaging=True)
 '''.format(dataDir)
 
-    if parameters:
+    parameterStr = ''
+
+    if mfsParameters:
         
-        for param in parameters:         
-            for key in param.keys():
-                if 'parameterStr' in locals():
-                    parameterStr.append(','+key+'='+str(param[key]))
+        for param in mfsParameters:         
+            for key in param.keys():                
+                if parameterStr:
+                    parameterStr = parameterStr+','+key+'='+str(param[key])
                 else:
                     parameterStr = key+'='+str(param[key])
 
-        imagingStr = '''
+        mfsImagingStr = '''
     hif_makeimlist(specmode='mfs')
     hif_makeimages(pipelinemode="automatic",{0:s})
     hif_makeimlist(specmode='cont')
-    hif_makeimages(pipelinemode="automatic",{0:s})
+    hif_makeimages(pipelinemode="automatic",{0:s})   
+'''.format(parameterStr)
+    else:
+        mfsImagingStr = '''
+    hif_makeimlist(specmode='mfs')
+    hif_makeimages(pipelinemode="automatic")
+    hif_makeimlist(specmode='cont')
+    hif_makeimages(pipelinemode="automatic")
+'''
+
+    parameterStr=''
+        
+    if cubeParameters:
+        
+        for param in cubeParameters:         
+            for key in param.keys():                
+                if parameterStr:
+                    parameterStr = parameterStr+','+key+'='+str(param[key])
+                else:
+                    parameterStr = key+'='+str(param[key])
+
+        cubeImagingStr = '''
     hif_makeimlist(specmode='cube')
     hif_makeimages(pipelinemode="automatic",{0:s})
     #hif_makeimlist(specmode='repBW')
@@ -1982,13 +2005,8 @@ try:
 finally:
     h_save()
 '''.format(parameterStr)
-
     else:
-        imagingStr = '''
-    hif_makeimlist(specmode='mfs')
-    hif_makeimages(pipelinemode="automatic")
-    hif_makeimlist(specmode='cont')
-    hif_makeimages(pipelinemode="automatic")
+         cubeImagingStr = '''
     hif_makeimlist(specmode='cube')
     hif_makeimages(pipelinemode="automatic")
     #hif_makeimlist(specmode='repBW')
@@ -1996,15 +2014,19 @@ finally:
     hifa_exportdata(pipelinemode="automatic")
 finally:
     h_save()
-'''
+'''.format(parameterStr)
+        
 
     fout = open(os.path.join(outDir,scriptName),'w')
     fout.write(scriptStr)
-    fout.write(imagingStr)
+    fout.write(mfsImagingStr)
+    fout.write(cubeImagingStr)
     fout.close()
 
 
-def setupPipeTest(benchmarkDir, testDir, parameters=None):
+#----------------------------------------------------------------------
+
+def setupPipeTest(benchmarkDir, testDir, mfsParameters=None, cubeParameters=None):
     '''
     Automatically populate a test directory with directories for
     individual data sets and copies over the relevant pipeline scripts.
@@ -2042,7 +2064,7 @@ def setupPipeTest(benchmarkDir, testDir, parameters=None):
 
              project = projectRE.match(mydir).group('project')
 
-             generatePipeScript(dataDir, scriptDir, scriptName=project+'.py',parameters=parameters)
+             generatePipeScript(dataDir, scriptDir, scriptName=project+'.py',cubeParameters=cubeParameters,mfsParameters=mfsParameters)
 
              shutil.copy(os.path.join(dataDir,'cont.dat'),
                          os.path.join(scriptDir,'cont.dat'))

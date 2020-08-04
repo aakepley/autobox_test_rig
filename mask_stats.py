@@ -869,6 +869,7 @@ def runStatsComp(baseDir, testDir, outFile, projects=None):
                              "Max_Base","Max_Test","Pdiff_Max",
                              "RMS_Base","RMS_Test","Pdiff_RMS",
                              "Mean_Base","Mean_Test","Pdiff_Mean",
+                             "Median_Base","Median_test","Pdiff_Median",
                              "Bmaj_base","Bmaj_test","Pdiff_Bmaj",
                              "Bmin_base","Bmin_test","Pdiff_Bmin",
                              "Bpa_base","Bpa_test","Pdiff_Ppa",
@@ -878,9 +879,15 @@ def runStatsComp(baseDir, testDir, outFile, projects=None):
                 if (projectRE.match(mydir)) and (mydir in projects):
                     baseProject = os.path.join(baseDir,mydir)
 
-                    baseImageListLong = glob.glob(os.path.join(baseProject,"*.image"))
-                    baseImageListLong.extend(glob.glob(os.path.join(baseProject,"*.image.tt0")))
-                    baseImageList = [os.path.basename(image) for (image) in baseImageListLong]
+                    baseImageListLong = glob.glob(os.path.join(baseProject,"*image"))
+                    baseImageListLong.extend(glob.glob(os.path.join(baseProject,"*image.tt0")))
+                    baseImageListLong.extend(glob.glob(os.path.join(baseProject,"*iter0.residual")))
+                    baseImageListLong.extend(glob.glob(os.path.join(baseProject,"*iter0.residual.tt0")))
+                    
+                    baseImageList = [os.path.basename(image) for image in baseImageListLong]
+
+                    print mydir
+                    print baseImageList
 
                     testProject = os.path.join(testDir,mydir)
                     
@@ -890,47 +897,83 @@ def runStatsComp(baseDir, testDir, outFile, projects=None):
                             testImagePath = os.path.join(testProject,image)     
                             
                             ia.open(baseImagePath)
-                            stats_base = ia.statistics()
+                            stats_base = ia.statistics(robust=True)
                             
                             beam_base = ia.restoringbeam()
 
-                            if re.search("cube",image):
-                                stats_base_perchan = ia.statistics(axes=[0,1])
+                            #if re.search("cube",image):
+                            #    stats_base_perchan = ia.statistics(axes=[0,1],robust=True)
 
                             ia.close()
                             ia.done()
 
                             ia.open(testImagePath)
-                            stats_test = ia.statistics()
+                            stats_test = ia.statistics(robust=True)
 
                             beam_test = ia.restoringbeam()
 
-                            if re.search("cube",image):
-                                stats_test_perchan = ia.statistics(axes=[0,1])
+                            #if re.search("cube",image):
+                            #    stats_test_perchan = ia.statistics(axes=[0,1],robust=True)
 
                             ia.close()
                             ia.done()
 
-                            beamarea_base = math.pi * beam_base['major']['value'] * beam_base['minor']['value'] / (4.0 * math.log(2.0))
-                            beamarea_test = math.pi * beam_test['major']['value'] * beam_test['minor']['value'] / (4.0 * math.log(2.0))
+                            if bool(beam_base) and bool(beam_test):
+
+                                beam_base_major = beam_base['major']['value']
+                                beam_test_major = beam_test['major']['value']
+                                
+                                beam_major_pdiff = 100.0*abs(beam_test['major']['value']-beam_base['major']['value'])/abs(beam_base['major']['value'])
+                                beam_base_minor = beam_base['minor']['value']
+                                beam_test_minor = beam_test['minor']['value']
+
+                                beam_minor_pdiff = 100.0*abs(beam_test['minor']['value']-beam_base['minor']['value'])/abs(beam_base['minor']['value'])
+
+                                beam_base_pa = beam_base['positionangle']['value']
+                                beam_test_pa = beam_test['positionangle']['value']
+
+                                beam_pa_pdiff = 100.0*abs(beam_test['positionangle']['value']-beam_base['positionangle']['value'])/abs(beam_base['positionangle']['value'])
+
+                                beamarea_base = math.pi * beam_base['major']['value'] * beam_base['minor']['value'] / (4.0 * math.log(2.0))
+                                beamarea_test = math.pi * beam_test['major']['value'] * beam_test['minor']['value'] / (4.0 * math.log(2.0))
+
+                                beamarea_pdiff = 100.0*abs(beamarea_test - beamarea_base)/abs(beamarea_base)
+
+                            else:
+
+                                beam_base_major = '--'
+                                beam_test_major = '--'
+                                beam_major_pdiff = '--'
+                                
+                                beam_base_minor = '--'
+                                beam_test_minor = '--'
+                                beam_minor_pdiff = '--'
+
+                                beam_base_pa = '--'
+                                beam_test_pa = '--'
+                                beam_pa_pdiff = '--'
+
+                                beamarea_base = '--'
+                                beamarea_test = '--'
+                                beamarea_pdiff = '--'
+                            
+                                
 
                             writer.writerow([mydir,image,
                                              stats_base['min'][0], stats_test['min'][0], 
-                                             abs(stats_test['min'][0] - stats_base['min'][0])/abs(stats_base['min'][0]),
+                                             100.0*abs(stats_test['min'][0] - stats_base['min'][0])/abs(stats_base['min'][0]),
                                              stats_base['max'][0], stats_test['max'][0], 
-                                             abs(stats_test['max'][0] - stats_base['max'][0])/abs(stats_base['max'][0]),
+                                             100.0*abs(stats_test['max'][0] - stats_base['max'][0])/abs(stats_base['max'][0]),
                                              stats_base['rms'][0], stats_test['rms'][0], 
-                                             abs(stats_test['rms'][0] - stats_base['rms'][0])/abs(stats_base['rms'][0]), 
+                                             100.0*abs(stats_test['rms'][0] - stats_base['rms'][0])/abs(stats_base['rms'][0]), 
                                              stats_base['mean'][0], stats_test['mean'][0],
-                                             abs(stats_test['mean'][0] - stats_base['mean'][0])/abs(stats_base['mean'][0]),
-                                             beam_base['major']['value'], beam_test['major']['value'],
-                                             abs(beam_test['major']['value']-beam_base['major']['value'])/abs(beam_base['major']['value']),
-                                             beam_base['minor']['value'], beam_test['minor']['value'],
-                                             abs(beam_test['minor']['value']-beam_base['minor']['value'])/abs(beam_base['minor']['value']),
-                                             beam_base['positionangle']['value'], beam_test['positionangle']['value'],
-                                             abs(beam_test['positionangle']['value']-beam_base['positionangle']['value'])/abs(beam_base['positionangle']['value']),
-                                             beamarea_base, beamarea_test,
-                                             abs(beamarea_test - beamarea_base)/abs(beamarea_base)])
+                                             100.0*abs(stats_test['mean'][0] - stats_base['mean'][0])/abs(stats_base['mean'][0]),
+                                             stats_base['median'][0], stats_test['median'][0],
+                                             100.0*abs(stats_test['median'][0] - stats_base['median'][0])/abs(stats_base['median'][0]),
+                                             beam_base_major, beam_test_major, beam_major_pdiff,
+                                             beam_base_minor, beam_test_minor, beam_minor_pdiff,
+                                             beam_base_pa, beam_test_pa, beam_pa_pdiff,
+                                             beamarea_base, beamarea_test, beamarea_pdiff])
                                             
                     else:
                         print "no corresponding test project: ", mydir

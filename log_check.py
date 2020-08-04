@@ -149,7 +149,7 @@ def divergence_hunt(root,outfile='test.log',stage=35,spw=None):
 
 #----------------------------------------------------------------------    
     
-def strip_logs(inlogs, channels=[195]):
+def strip_logs(inlogs, channels=None):
 
 
     '''
@@ -165,16 +165,13 @@ def strip_logs(inlogs, channels=[195]):
         fout = open(fileout,'w')
 
         for line in f:
-            if re.search('imagename=".+"',line):
+            if re.search("imagename='.+'",line):
                 fout.write(line)
 
-            if re.search('threshold=".+Jy"',line):
+            if re.search("threshold='.+Jy'",line):
                 fout.write(line)
 
-            if re.search("Peak residual \(max,min\)",line):
-                fout.write(line)
-
-            if re.search("Total Model Flux",line):
+            if re.search("Peak Residual",line):
                 fout.write(line)
 
             if channels:
@@ -198,9 +195,6 @@ def strip_logs(inlogs, channels=[195]):
             if re.search("CycleThreshold=",line):
                 fout.write(line)
 
-            if re.search("Total model flux",line):
-                fout.write(line)
-
             if re.search("Completed .+ iterations.",line):
                 fout.write(line)
 
@@ -210,7 +204,13 @@ def strip_logs(inlogs, channels=[195]):
             if re.search("Run \(Last\) Major Cycle",line):
                 fout.write(line)
 
-            if re.search("grow iter done=",line):
+            #if re.search("grow iter done=",line):
+            #    fout.write(line)
+             
+            if re.search("Reached global stopping criterion",line):
+                fout.write(line)
+
+            if re.search("Reverting output mask to one that was last used",line):
                 fout.write(line)
                 
 
