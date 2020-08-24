@@ -1805,12 +1805,16 @@ def split_mpi_logs(log,n=8):
 
 def parseLog_newlog_simple(logfile):
     '''
+
     Parse an individual log file and return an object with the data in it
+
     '''
     
     import re
     from datetime import datetime
     import copy
+    import ast
+    import numpy as np
     #import ipdb
 
     # regex patterns for below.
@@ -1822,9 +1826,20 @@ def parseLog_newlog_simple(logfile):
     imsizeRE = re.compile(r'imsize=\[(?P<imsize1>.*?),(?P<imsize2>.*?)\]')
     nchanRE = re.compile(r'nchan=(?P<nchan>.*?),')
 
+    gridderRE = re.compile(r"gridder=\'(?P<gridder>.*?)\'")
+
     tcleanEndRE = re.compile(r"End Task: tclean")
     
     dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+    antennaRE = re.compile(r"antenna=\[\'(?P<antennalist>.*?)\'")    
+
+    chanchunksRE = re.compile(r"INFO\tSynthesisImagerVi2::appendToMapperList\(ftm\)\+\tSetting chanchunks to (?P<chanchunks>.*?)\n")
+
+    # Hmm... I'm not sure this makes sense here. The old parallel is
+    # reports per node, which makes it harder to parse the
+    # output. Maybe only good for serial cross-checks?
+ 
+    #resultTcleanRE = re.compile(r"Result tclean: {.* 'cyclethreshold': (?P<cyclethreshold>.*?), .*, 'iterdone': (?P<iterdone>.*?),")
 
 
     # open file
@@ -1864,6 +1879,21 @@ def parseLog_newlog_simple(logfile):
         if nchanRE.search(line):
             results['nchan'] = int(nchanRE.search(line).group('nchan'))
 
+        if gridderRE.search(line):
+            results['gridder'] = gridderRE.search(line).group('gridder')
+
+        if antennaRE.search(line):
+            antennalist = ast.literal_eval(antennaRE.search(line).group('antennalist'))
+            # crude and not necessarily true for early data, but
+            # should be okay now.
+            if len(antennalist) > 16:
+                results['array'] = '12m'
+            else:
+                results['array'] = '7m'
+
+        if chanchunksRE.search(line):
+            results['chanchunks'] = int(chanchunksRE.search(line).group('chanchunks'))
+
         # capture the end of the clean
         if tcleanEndRE.search(line):
             endTimeStr = dateFmtRE.search(line)
@@ -1880,6 +1910,10 @@ def parseLog_newlog_simple(logfile):
                 
             results['aspectRatio'] = float(max(results['imsize']))/float(min(results['imsize']))
 
+
+            if 'chanchunks' not in results.keys():
+                results['chanchunks'] = 0
+
             allresults[imagename] = results
 
             results = {}
@@ -1889,6 +1923,8 @@ def parseLog_newlog_simple(logfile):
     filein.close()
 
     return allresults
+
+#----------------------------------------------------------------------
 
 def tCleanTime_newlogs_simple(testDir):
     '''
@@ -1936,6 +1972,161 @@ def tCleanTime_newlogs_simple(testDir):
             
     return allresults
 
+#----------------------------------------------------------------------
+
+
+def flattenTimingData_simple(inDict):
+    '''
+    flatten the simple timing data
+    '''
+
+    import numpy as np
+
+    flatDict = {'project': [],
+                'imagename': [],
+                'specmode':[],
+                'imsize':[],
+                'aspectRatio': [],
+                'nchan':[],
+                'gridder':[],
+                'array':[],
+                'tcleanTime':[],
+                'totalSize':[],
+                'chanchunks':[]}
+
+    for (project,images) in inDict.items():
+        for (image,data) in images.items():
+
+            for key in flatDict.keys():
+                if key is 'tcleanTime':
+                    flatDict[key].append(float(data[key].seconds))
+                elif key is 'project':
+                    flatDict['project'].append(project)
+                elif key is 'imagename':
+                     flatDict['imagename'].append(image)
+                else:
+                    flatDict[key].append(data[key])
+
+
+    return flatDict
+
+#----------------------------------------------------------------------
+            
+def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84'):
+    '''
+    make an astropy table of the timing data for (hopefully) easier plotting
+    '''
+    
+    from astropy.table import Table
+    import numpy as np
+    import re
+
+    projectArr = np.array([])
+    imagenameArr = np.array([])
+    specmodeArr = np.array([])
+    imsize1Arr = np.array([])
+    imsize2Arr = np.array([])
+    nchanArr = np.array([])
+    gridderArr = np.array([])
+    arrayArr = np.array([])
+    tcleanTime1Arr = np.array([])
+    tcleanTime2Arr = np.array([])
+    totalSizeArr = np.array([])
+    iterArr =  np.array([])
+    pdiffArr = np.array([])
+    aspectRatioArr = np.array([])
+    chanchunksArr = np.array([])
+
+
+
+    for project in inDict1.keys():
+        if project in inDict2.keys():
+            for image in inDict1[project].keys():
+                if image in inDict2[project]:
+                    projectArr = np.append(project,projectArr)
+                    imagenameArr = np.append(image,imagenameArr)
+
+                    if re.search('iter0',image):
+                        iterArr = np.append('iter0',iterArr)
+                    else:
+                        iterArr = np.append('iter1',iterArr)
+
+                    specmodeArr = np.append(inDict1[project][image]['specmode'],specmodeArr)
+                    imsize1Arr = np.append(inDict1[project][image]['imsize'][0],imsize1Arr)
+                    imsize2Arr = np.append(inDict1[project][image]['imsize'][1],imsize2Arr)
+                    aspectRatioArr =np.append(inDict1[project][image]['aspectRatio'],aspectRatioArr)
+                    nchanArr = np.append(inDict1[project][image]['nchan'],nchanArr)
+                    gridderArr = np.append(inDict1[project][image]['gridder'],gridderArr)
+                    arrayArr = np.append(inDict1[project][image]['array'],arrayArr)
+                    totalSizeArr = np.append(inDict1[project][image]['totalSize'],totalSizeArr)
+
+                    tcleanTime1 = float(inDict1[project][image]['tcleanTime'].seconds)
+                    tcleanTime2 = float(inDict2[project][image]['tcleanTime'].seconds)
+
+                    pdiff = 100.0* (tcleanTime2 - tcleanTime1) / tcleanTime1
+
+                    tcleanTime1Arr = np.append(tcleanTime1,tcleanTime1Arr)
+                    tcleanTime2Arr = np.append(tcleanTime2,tcleanTime2Arr)
+
+                    pdiffArr = np.append(pdiff, pdiffArr)
+                
+                    chanchunksArr = np.append(inDict1[project][image]['chanchunks'],chanchunksArr)
+    
+
+                
+    t = Table([projectArr,
+               imagenameArr,
+               iterArr,
+               specmodeArr,            
+               imsize1Arr,
+               imsize2Arr,
+               aspectRatioArr,
+               nchanArr,
+               gridderArr,
+               arrayArr,
+               totalSizeArr,
+               tcleanTime1Arr,
+               tcleanTime2Arr,
+               pdiffArr,
+               chanchunksArr],
+              names=('project','imagename','iter','specmode','imsize1','imsize2','aspectRatio','nchan','gridder','array','totalSize','tcleanTime_'+label1, 'tcleanTime_'+label2,'pdiff','chanchunks'))
+
+    totalTime1 = np.zeros(len(projectArr))
+    totalTime2 = np.zeros(len(projectArr))
+    totalTime_pdiff = np.zeros(len(projectArr))
+
+    for entry in t:
+        if (entry['iter'] == 'iter0'):
+            idx_iter0 = ((t['project'] == entry['project'] ) & 
+                         (t['imagename'] == entry['imagename']))
+
+            idx_iter1 = ((t['project'] == entry['project'] ) & 
+                         (t['imagename'] == entry['imagename'].replace('iter0','iter1')))
+
+            if t[idx_iter1]:
+                totalTime1[idx_iter0] = t[idx_iter1]['tcleanTime_'+label1]+t[idx_iter0]['tcleanTime_'+label1]
+                totalTime2[idx_iter0] = t[idx_iter1]['tcleanTime_'+label2]+t[idx_iter0]['tcleanTime_'+label2]
+
+               
+
+            else:
+                totalTime1[idx_iter0] = t[idx_iter0]['tcleanTime_'+label1]
+                totalTime2[idx_iter0] = t[idx_iter0]['tcleanTime_'+label2]              
+
+            totalTime_pdiff[idx_iter0] = 100.0* ( totalTime2[idx_iter0]-totalTime1[idx_iter0])/totalTime1[idx_iter0]
+
+        else:
+            continue
+
+   
+    t.add_column(totalTime1,name='totalTime_'+label1)
+    t.add_column(totalTime2,name='totalTime_'+label2)
+    t.add_column(totalTime_pdiff, name='totalTime_pdiff')
+
+
+    return t
+
+            
 # ----------------------------------------------------------------------
 
 def generatePipeScript(dataDir, outDir, scriptName='test.py',mfsParameters=None,cubeParameters=None):

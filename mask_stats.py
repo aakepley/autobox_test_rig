@@ -988,3 +988,34 @@ def plotStatsDiff(base_perchan, test_perchan,title='test',binsize=1.0):
     '''
 
     pass
+
+
+def generateSpectra(baseDir, projects=None):
+    '''
+    generate pipeline-like spectra plots
+    '''
+
+    
+    import csv
+    import math
+
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+ 
+    if os.path.exists(baseDir):
+        dataDirs = os.listdir(baseDir)
+
+        if not projects:
+            projects = dataDirs
+        
+        for mydir in dataDirs:
+            if (projectRE.match(mydir)) and (mydir in projects):
+
+                # get list of cubes
+                cubelist = glob.glob(os.path.join(baseDir,mydir,'*.cube.I.iter1.image'))
+                cubelist.extend(glob.glob(os.path.join(baseDir,mydir,'*.cube.I.iter1.residual')))
+
+                for cube in cubelist:
+                    if re.search('residual',cube):
+                        au.plotSpectrumFromMask(cube, figsize=(12,5),copyBeamFromPSF=True)
+                    else:
+                        au.plotSpectrumFromMask(cube, figsize=(12,5))
