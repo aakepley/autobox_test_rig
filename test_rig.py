@@ -1803,10 +1803,12 @@ def split_mpi_logs(log,n=8):
 
 # ----------------------------------------------------------------------
 
-def parseLog_newlog_simple(logfile):
+def parseLog_newlog_simple(logfile,serial=False):
     '''
 
     Parse an individual log file and return an object with the data in it
+
+    serial = True get stats from return dictionary.
 
     '''
     
@@ -1826,6 +1828,8 @@ def parseLog_newlog_simple(logfile):
     imsizeRE = re.compile(r'imsize=\[(?P<imsize1>.*?),(?P<imsize2>.*?)\]')
     nchanRE = re.compile(r'nchan=(?P<nchan>.*?),')
 
+    commonbeamRE = re.compile("restoringbeam='common', .*, parallel=False")
+
     gridderRE = re.compile(r"gridder=\'(?P<gridder>.*?)\'")
 
     tcleanEndRE = re.compile(r"End Task: tclean")
@@ -1839,9 +1843,9 @@ def parseLog_newlog_simple(logfile):
     # reports per node, which makes it harder to parse the
     # output. Maybe only good for serial cross-checks?
  
-    #resultTcleanRE = re.compile(r"Result tclean: {.* 'cyclethreshold': (?P<cyclethreshold>.*?), .*, 'iterdone': (?P<iterdone>.*?),")
+    resultTcleanRE = re.compile(r"Result tclean: \{.*, 'cyclethreshold': (?P<cyclethreshold>.*?), .*, 'iterdone': (?P<iterdone>.*?), .*, 'nmajordone': (?P<nmajordone>.*?), .*, 'stopcode': (?P<stopcode>.*?),")
 
-
+    
     # open file
     filein = open(logfile,'r')
 
@@ -1850,6 +1854,7 @@ def parseLog_newlog_simple(logfile):
     allresults = {}
     results = {}
     specmode=''
+    commonbeam = False
 
     # go through file
     for line in filein:
@@ -1863,6 +1868,9 @@ def parseLog_newlog_simple(logfile):
         # capture image name
         if imagenameRE.search(line):
             imagename = imagenameRE.search(line).group('imagename')
+
+        if commonbeamRE.search(line):
+            commonbeam=True
 
         # capture line vs. continuum
         if specmodeRE.search(line):
@@ -1894,6 +1902,12 @@ def parseLog_newlog_simple(logfile):
         if chanchunksRE.search(line):
             results['chanchunks'] = int(chanchunksRE.search(line).group('chanchunks'))
 
+        if serial and resultTcleanRE.search(line):
+            results['cyclethreshold'] = float(resultTcleanRE.search(line).group('cyclethreshold'))
+            results['iterdone'] = int(resultTcleanRE.search(line).group('iterdone'))
+            results['nmajordone'] = int(resultTcleanRE.search(line).group('nmajordone'))
+            results['stopcode'] = int(resultTcleanRE.search(line).group('stopcode'))
+
         # capture the end of the clean
         if tcleanEndRE.search(line):
             endTimeStr = dateFmtRE.search(line)
@@ -1910,6 +1924,15 @@ def parseLog_newlog_simple(logfile):
                 
             results['aspectRatio'] = float(max(results['imsize']))/float(min(results['imsize']))
 
+            if re.search('iter0',imagename):
+                results['iter'] = 'iter0'
+            ## deal with restart to get common beam.
+            elif (re.search('iter1',imagename) and commonbeam and (results['specmode'] == 'cube')):
+                print('iter2')
+                imagename = imagename.replace('iter1','iter2')
+                results['iter'] = 'iter2'
+            else:
+                results['iter'] = 'iter1'
 
             if 'chanchunks' not in results.keys():
                 results['chanchunks'] = 0
@@ -1919,6 +1942,7 @@ def parseLog_newlog_simple(logfile):
             results = {}
             specmode=''
             imagename=''
+            commonbeam=False
 
     filein.close()
 
@@ -1926,7 +1950,7 @@ def parseLog_newlog_simple(logfile):
 
 #----------------------------------------------------------------------
 
-def tCleanTime_newlogs_simple(testDir):
+def tCleanTime_newlogs_simple(testDir,serial=False):
     '''
     Time how long tclean takes
     '''
@@ -1965,7 +1989,7 @@ def tCleanTime_newlogs_simple(testDir):
         # go through logs and extract info.
         for logfile in logfilelist:
 
-            allresults = parseLog_newlog_simple(logfile)
+            allresults = parseLog_newlog_simple(logfile,serial=serial)
     else:
         print("no path found")
         allresults = {}
@@ -2012,7 +2036,7 @@ def flattenTimingData_simple(inDict):
 
 #----------------------------------------------------------------------
             
-def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84'):
+def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',serial=False):
     '''
     make an astropy table of the timing data for (hopefully) easier plotting
     '''
@@ -2037,8 +2061,6 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84'):
     aspectRatioArr = np.array([])
     chanchunksArr = np.array([])
 
-
-
     for project in inDict1.keys():
         if project in inDict2.keys():
             for image in inDict1[project].keys():
@@ -2046,10 +2068,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84'):
                     projectArr = np.append(project,projectArr)
                     imagenameArr = np.append(image,imagenameArr)
 
-                    if re.search('iter0',image):
-                        iterArr = np.append('iter0',iterArr)
-                    else:
-                        iterArr = np.append('iter1',iterArr)
+                    iterArr = np.append(inDict1[project][image]['iter'],iterArr)
 
                     specmodeArr = np.append(inDict1[project][image]['specmode'],specmodeArr)
                     imsize1Arr = np.append(inDict1[project][image]['imsize'][0],imsize1Arr)
@@ -2071,9 +2090,9 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84'):
                     pdiffArr = np.append(pdiff, pdiffArr)
                 
                     chanchunksArr = np.append(inDict1[project][image]['chanchunks'],chanchunksArr)
-    
 
                 
+
     t = Table([projectArr,
                imagenameArr,
                iterArr,
@@ -2091,30 +2110,47 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84'):
                chanchunksArr],
               names=('project','imagename','iter','specmode','imsize1','imsize2','aspectRatio','nchan','gridder','array','totalSize','tcleanTime_'+label1, 'tcleanTime_'+label2,'pdiff','chanchunks'))
 
+
     totalTime1 = np.zeros(len(projectArr))
     totalTime2 = np.zeros(len(projectArr))
     totalTime_pdiff = np.zeros(len(projectArr))
 
     for entry in t:
-        if (entry['iter'] == 'iter0'):
+        if entry['iter'] == 'iter0':
+            
+            # looking for corresponding images.
             idx_iter0 = ((t['project'] == entry['project'] ) & 
-                         (t['imagename'] == entry['imagename']))
+                          (t['imagename'] == entry['imagename']))
 
-            idx_iter1 = ((t['project'] == entry['project'] ) & 
-                         (t['imagename'] == entry['imagename'].replace('iter0','iter1')))
+            idx_iter1 = ((t['project'] == entry['project']) &
+                          (t['imagename'] == entry['imagename'].replace('iter0','iter1')))
 
-            if t[idx_iter1]:
+            idx_iter2 = ((t['project'] == entry['project']) &
+                         (t['imagename'] == entry['imagename'].replace('iter0','iter2')))
+
+            # check if iter2 present
+            if t[idx_iter2]:                
+
+                totalTime1[idx_iter0] = t[idx_iter2]['tcleanTime_'+label1] + t[idx_iter1]['tcleanTime_'+label1]+t[idx_iter0]['tcleanTime_'+label1]
+
+                totalTime2[idx_iter0] = t[idx_iter2]['tcleanTime_'+label2] + t[idx_iter1]['tcleanTime_'+label2]+t[idx_iter0]['tcleanTime_'+label2]
+
+            # if not fall back to iter1
+            elif t[idx_iter1]:
+
                 totalTime1[idx_iter0] = t[idx_iter1]['tcleanTime_'+label1]+t[idx_iter0]['tcleanTime_'+label1]
+
                 totalTime2[idx_iter0] = t[idx_iter1]['tcleanTime_'+label2]+t[idx_iter0]['tcleanTime_'+label2]
 
-               
-
+            # otherwise no cleaning done, so iter0
             else:
+
                 totalTime1[idx_iter0] = t[idx_iter0]['tcleanTime_'+label1]
+
                 totalTime2[idx_iter0] = t[idx_iter0]['tcleanTime_'+label2]              
-
+            # calculate difference in total time.
             totalTime_pdiff[idx_iter0] = 100.0* ( totalTime2[idx_iter0]-totalTime1[idx_iter0])/totalTime1[idx_iter0]
-
+                          
         else:
             continue
 

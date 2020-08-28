@@ -886,8 +886,8 @@ def runStatsComp(baseDir, testDir, outFile, projects=None):
                     
                     baseImageList = [os.path.basename(image) for image in baseImageListLong]
 
-                    print mydir
-                    print baseImageList
+                    #print mydir
+                    #print baseImageList
 
                     testProject = os.path.join(testDir,mydir)
                     
@@ -907,16 +907,21 @@ def runStatsComp(baseDir, testDir, outFile, projects=None):
                             ia.close()
                             ia.done()
 
-                            ia.open(testImagePath)
-                            stats_test = ia.statistics(robust=True)
+                            if os.path.exists(testImagePath):
 
-                            beam_test = ia.restoringbeam()
+                                ia.open(testImagePath)
+                                stats_test = ia.statistics(robust=True)
 
-                            #if re.search("cube",image):
-                            #    stats_test_perchan = ia.statistics(axes=[0,1],robust=True)
+                                beam_test = ia.restoringbeam()
 
-                            ia.close()
-                            ia.done()
+                                #if re.search("cube",image):
+                                #    stats_test_perchan = ia.statistics(axes=[0,1],robust=True)
+
+                                ia.close()
+                                ia.done()
+                            else:
+                                print("test image does not exist:" + testImagePath)
+                                continue
 
                             if bool(beam_base) and bool(beam_test):
 
@@ -1015,7 +1020,4 @@ def generateSpectra(baseDir, projects=None):
                 cubelist.extend(glob.glob(os.path.join(baseDir,mydir,'*.cube.I.iter1.residual')))
 
                 for cube in cubelist:
-                    if re.search('residual',cube):
-                        au.plotSpectrumFromMask(cube, figsize=(12,5),copyBeamFromPSF=True)
-                    else:
-                        au.plotSpectrumFromMask(cube, figsize=(12,5))
+                    au.plotSpectrumFromMask(cube, figsize=(12,5),plotfile=True)
