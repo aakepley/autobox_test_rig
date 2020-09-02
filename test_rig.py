@@ -1874,8 +1874,10 @@ def parseLog_newlog_simple(logfile,serial=False):
 
         # capture line vs. continuum
         if specmodeRE.search(line):
-            if re.match(specmodeRE.search(line).group('specmode'),'cube'):
+            if (re.match(specmodeRE.search(line).group('specmode'),'cube')):
                 results['specmode']='cube'
+            elif (re.match(specmodeRE.search(line).group('specmode'),'cubesource')):
+                results['specmode']='cubesource'            
             else:
                 results['specmode']='cont'
 
@@ -1924,15 +1926,18 @@ def parseLog_newlog_simple(logfile,serial=False):
                 
             results['aspectRatio'] = float(max(results['imsize']))/float(min(results['imsize']))
 
-            if re.search('iter0',imagename):
-                results['iter'] = 'iter0'
-            ## deal with restart to get common beam.
-            elif (re.search('iter1',imagename) and commonbeam and (results['specmode'] == 'cube')):
-                print('iter2')
-                imagename = imagename.replace('iter1','iter2')
+            ## deal with restart to get common beam.            
+            if commonbeam and (results['specmode'] == 'cube'):
+                if re.search('iter0',imagename):
+                    imagename = imagename.replace('iter0','iter2')
+                elif re.search('iter1',imagename):
+                    imagename = imagename.replace('iter1','iter2')
                 results['iter'] = 'iter2'
             else:
-                results['iter'] = 'iter1'
+                if re.search('iter0',imagename):
+                    results['iter'] = 'iter0'
+                elif re.search('iter1',imagename):
+                    results['iter'] = 'iter1'
 
             if 'chanchunks' not in results.keys():
                 results['chanchunks'] = 0
@@ -2043,6 +2048,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
     
     from astropy.table import Table
     import numpy as np
+    import numpy.ma as ma
     import re
 
     projectArr = np.array([])
@@ -2054,17 +2060,37 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
     gridderArr = np.array([])
     arrayArr = np.array([])
     tcleanTime1Arr = np.array([])
-    tcleanTime2Arr = np.array([])
+    tcleanTime2Arr = ma.array([])
+    tcleanTime2MaskArr = np.array([])
     totalSizeArr = np.array([])
     iterArr =  np.array([])
-    pdiffArr = np.array([])
+    pdiffArr = ma.array([])
+    pdiffMaskArr = np.array([])
     aspectRatioArr = np.array([])
     chanchunksArr = np.array([])
+
+    if serial:
+        cyclethreshold1Arr = ma.array([])
+        cyclethreshold1MaskArr  = np.array([])
+        iterdone1Arr = ma.array([])
+        iterdone1MaskArr = np.array([])
+        nmajordone1Arr = ma.array([])
+        nmajordone1MaskArr = np.array([])
+        stopcode1Arr = ma.array([])
+        stopcode1MaskArr = np.array([])
+        
+        cyclethreshold2Arr = ma.array([])
+        cyclethreshold2MaskArr  = np.array([])
+        iterdone2Arr = ma.array([])
+        iterdone2MaskArr = np.array([])
+        nmajordone2Arr = ma.array([])
+        nmajordone2MaskArr = np.array([])
+        stopcode2Arr = ma.array([])
+        stopcode2MaskArr = np.array([])
 
     for project in inDict1.keys():
         if project in inDict2.keys():
             for image in inDict1[project].keys():
-                if image in inDict2[project]:
                     projectArr = np.append(project,projectArr)
                     imagenameArr = np.append(image,imagenameArr)
 
@@ -2080,18 +2106,102 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                     totalSizeArr = np.append(inDict1[project][image]['totalSize'],totalSizeArr)
 
                     tcleanTime1 = float(inDict1[project][image]['tcleanTime'].seconds)
-                    tcleanTime2 = float(inDict2[project][image]['tcleanTime'].seconds)
-
-                    pdiff = 100.0* (tcleanTime2 - tcleanTime1) / tcleanTime1
-
                     tcleanTime1Arr = np.append(tcleanTime1,tcleanTime1Arr)
-                    tcleanTime2Arr = np.append(tcleanTime2,tcleanTime2Arr)
 
-                    pdiffArr = np.append(pdiff, pdiffArr)
-                
                     chanchunksArr = np.append(inDict1[project][image]['chanchunks'],chanchunksArr)
 
-                
+                    if image in inDict2[project]:
+
+                        tcleanTime2 = float(inDict2[project][image]['tcleanTime'].seconds)
+                        pdiff = 100.0* (tcleanTime2 - tcleanTime1) / tcleanTime1
+
+                        tcleanTime2Arr = ma.append(tcleanTime2,tcleanTime2Arr)
+                        pdiffArr = ma.append(pdiff, pdiffArr)
+
+                        tcleanTime2MaskArr = np.append(False,pdiffMaskArr)
+                        pdiffMaskArr = np.append(False,pdiffMaskArr)
+
+
+                    else: 
+                        tcleanTime2Arr = ma.append(99,tcleanTime2Arr)
+                        pdiffArr = ma.append(99,pdiffArr)
+
+                        tcleanTime2MaskArr = np.append(True,pdiffMaskArr)
+                        pdiffMaskArr = np.append(True,pdiffMaskArr)
+
+                    if serial:
+                        if ((image in inDict1[project].keys()) and 
+                                ('cyclethreshold' in inDict1[project][image].keys())):
+                            cyclethreshold1Arr = np.append(inDict1[project][image]['cyclethreshold'], cyclethreshold1Arr)
+                            cyclethreshold1MaskArr = np.append(False, cyclethreshold1MaskArr)
+
+                            iterdone1Arr = np.append(inDict1[project][image]['iterdone'], iterdone1Arr)
+                            iterdone1MaskArr = np.append(False, iterdone1MaskArr)
+
+                            nmajordone1Arr = np.append(inDict1[project][image]['nmajordone'], nmajordone1Arr)
+                            nmajordone1MaskArr = np.append(False, nmajordone1MaskArr)
+
+                            stopcode1Arr = np.append(inDict1[project][image]['stopcode'], stopcode1Arr)
+                            stopcode1MaskArr = np.append(False, stopcode1MaskArr)
+
+                        else:
+                            cyclethreshold1Arr = np.append(99, cyclethreshold1Arr)
+                            cyclethreshold1MaskArr = np.append(True, cyclethreshold1MaskArr)
+
+                            iterdone1Arr = np.append(99, iterdone1Arr)
+                            iterdone1MaskArr = np.append(True, iterdone1MaskArr)
+
+                            nmajordone1Arr = np.append(99, nmajordone1Arr)
+                            nmajordone1MaskArr = np.append(True, nmajordone1MaskArr)
+
+                            stopcode1Arr = np.append(99, stopcode1Arr)
+                            stopcode1MaskArr = np.append(True, stopcode1MaskArr)
+
+
+                            # mask
+                        if ((image in inDict2[project].keys()) and 
+                                ('cyclethreshold' in inDict2[project][image].keys())):
+                            cyclethreshold2Arr = np.append(inDict2[project][image]['cyclethreshold'], cyclethreshold2Arr)
+                            cyclethreshold2MaskArr = np.append(False, cyclethreshold2MaskArr)
+
+                            iterdone2Arr = np.append(inDict2[project][image]['iterdone'], iterdone2Arr)
+                            iterdone2MaskArr = np.append(False, iterdone2MaskArr)
+
+                            nmajordone2Arr = np.append(inDict2[project][image]['nmajordone'], nmajordone2Arr)
+                            nmajordone2MaskArr = np.append(False, nmajordone2MaskArr)
+
+                            stopcode2Arr = np.append(inDict2[project][image]['stopcode'], stopcode2Arr)
+                            stopcode2MaskArr = np.append(False, stopcode2MaskArr)
+
+                        else:
+                            #mask
+
+                            cyclethreshold2Arr = np.append(99, cyclethreshold2Arr)
+                            cyclethreshold2MaskArr = np.append(True, cyclethreshold2MaskArr)
+
+                            iterdone2Arr = np.append(99, iterdone2Arr)
+                            iterdone2MaskArr = np.append(True, iterdone2MaskArr)
+
+                            nmajordone2Arr = np.append(99, nmajordone2Arr)
+                            nmajordone2MaskArr = np.append(True, nmajordone2MaskArr)
+
+                            stopcode2Arr = np.append(99, stopcode2Arr)
+                            stopcode2MaskArr = np.append(True, stopcode2MaskArr)
+
+
+        tcleanTime2Arr.mask = tcleanTime2MaskArr
+        pdiffArr.mask = pdiffMaskArr
+
+        if serial:
+            cyclethreshold1Arr.mask = cyclethreshold1MaskArr
+            iterdone1Arr.mask = iterdone1MaskArr
+            nmajordone1Arr.mask = nmajordone1MaskArr
+            stopcode1Arr.mask = stopcode1MaskArr
+            
+            cyclethreshold2Arr.mask = cyclethreshold2MaskArr
+            iterdone2Arr.mask = iterdone2MaskArr
+            nmajordone2Arr.mask = nmajordone2MaskArr
+            stopcode2Arr.mask = stopcode2MaskArr
 
     t = Table([projectArr,
                imagenameArr,
@@ -2108,8 +2218,20 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                tcleanTime2Arr,
                pdiffArr,
                chanchunksArr],
-              names=('project','imagename','iter','specmode','imsize1','imsize2','aspectRatio','nchan','gridder','array','totalSize','tcleanTime_'+label1, 'tcleanTime_'+label2,'pdiff','chanchunks'))
+              names=('project','imagename','iter','specmode','imsize1','imsize2','aspectRatio','nchan','gridder','array','totalSize','tcleanTime_'+label1, 'tcleanTime_'+label2,'pdiff','chanchunks'),masked=True)
 
+
+    if serial:
+        t.add_column(cyclethreshold1Arr,name='cyclethreshold_'+label1)
+        t.add_column(iterdone1Arr,name='iterdone_'+label1)
+        t.add_column(nmajordone1Arr,name='nmajordone_'+label1)
+        t.add_column(stopcode1Arr,name='stopcode_'+label1)
+
+        t.add_column(cyclethreshold2Arr,name='cyclethreshold_'+label2)
+        t.add_column(iterdone2Arr,name='iterdone_'+label2)
+        t.add_column(nmajordone2Arr,name='nmajordone_'+label2)
+        t.add_column(stopcode2Arr,name='stopcode_'+label2)
+    
 
     totalTime1 = np.zeros(len(projectArr))
     totalTime2 = np.zeros(len(projectArr))
@@ -2120,20 +2242,31 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
             
             # looking for corresponding images.
             idx_iter0 = ((t['project'] == entry['project'] ) & 
-                          (t['imagename'] == entry['imagename']))
+                         (t['imagename'] == entry['imagename']))
 
             idx_iter1 = ((t['project'] == entry['project']) &
-                          (t['imagename'] == entry['imagename'].replace('iter0','iter1')))
+                         (t['imagename'] == entry['imagename'].replace('iter0','iter1')))
 
             idx_iter2 = ((t['project'] == entry['project']) &
                          (t['imagename'] == entry['imagename'].replace('iter0','iter2')))
 
-            # check if iter2 present
-            if t[idx_iter2]:                
+            # check if iter2  and iter2 present
+            if t[idx_iter2] and t[idx_iter1]:                
+                
+                totalTime1[idx_iter0] = t[idx_iter2]['tcleanTime_'+label1] + t[idx_iter1]['tcleanTime_'+label1]+t[idx_iter0]['tcleanTime_'+label1]                
 
-                totalTime1[idx_iter0] = t[idx_iter2]['tcleanTime_'+label1] + t[idx_iter1]['tcleanTime_'+label1]+t[idx_iter0]['tcleanTime_'+label1]
+                if  t[idx_iter2]['tcleanTime_'+label2].mask:
+                    totalTime2[idx_iter0] = t[idx_iter1]['tcleanTime_'+label2]+t[idx_iter0]['tcleanTime_'+label2]                    
+                else:
+                    totalTime2[idx_iter0] = t[idx_iter2]['tcleanTime_'+label2] + t[idx_iter1]['tcleanTime_'+label2]+t[idx_iter0]['tcleanTime_'+label2]
+            # only iter two
+            elif t[idx_iter2]:
+                totalTime1[idx_iter0] = t[idx_iter2]['tcleanTime_'+label1] +t[idx_iter0]['tcleanTime_'+label1]                
 
-                totalTime2[idx_iter0] = t[idx_iter2]['tcleanTime_'+label2] + t[idx_iter1]['tcleanTime_'+label2]+t[idx_iter0]['tcleanTime_'+label2]
+                if  t[idx_iter2]['tcleanTime_'+label2].mask:
+                    totalTime2[idx_iter0] = t[idx_iter0]['tcleanTime_'+label2]                    
+                else:
+                    totalTime2[idx_iter0] = t[idx_iter2]['tcleanTime_'+label2] + t[idx_iter0]['tcleanTime_'+label2]
 
             # if not fall back to iter1
             elif t[idx_iter1]:
@@ -2150,7 +2283,14 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                 totalTime2[idx_iter0] = t[idx_iter0]['tcleanTime_'+label2]              
             # calculate difference in total time.
             totalTime_pdiff[idx_iter0] = 100.0* ( totalTime2[idx_iter0]-totalTime1[idx_iter0])/totalTime1[idx_iter0]
-                          
+
+            # copy info from iter1 to iter0
+            if t[idx_iter1]:
+                ## NEED TO DO LABEL THEN IDX TO GET CORRECT COPY
+                t['nmajordone_'+label2][idx_iter0] = t['nmajordone_'+label2][idx_iter1]
+            else:
+                t['nmajordone_'+label2][idx_iter0] = 0
+            
         else:
             continue
 
@@ -2161,8 +2301,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
 
 
     return t
-
-            
+                    
 # ----------------------------------------------------------------------
 
 def generatePipeScript(dataDir, outDir, scriptName='test.py',mfsParameters=None,cubeParameters=None):
