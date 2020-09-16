@@ -1635,7 +1635,7 @@ def addParameters(inScript,outScript,parameters):
                 
 #----------------------------------------------------------------------
 
-def modifyParameters(inScript,outScript, parameters):
+def modifyParameters(inScript,outScript, parameters, removerestart=False):
     '''
 
     modify the parameter values
@@ -1678,6 +1678,10 @@ def modifyParameters(inScript,outScript, parameters):
     ) 
     """,re.VERBOSE)
     
+    #tcleanRestart = re.compile(r"tclean\(*., restoringbeam=\'common\', *., niter=0, *., parallel=False\)")
+    #tcleanRestart = re.compile(r"restoringbeam='common', *., niter=0, *., parallel=False")
+    tcleanRestart = re.compile(r"specmode='cube', .*, restoringbeam='common', .*, niter=0, .*, parallel=False\)")
+
     if os.path.exists(inScript):
         filein = open(inScript,'r')
         fileout = open(outScript,'w')
@@ -1686,6 +1690,12 @@ def modifyParameters(inScript,outScript, parameters):
             if tcleanCmd.search(line):
                 # modify the line for each parameter we want
                 # change. This may not be the most efficient.
+
+                if removerestart:
+                    if tcleanRestart.search(line):
+                        print("removing restart")
+                        continue
+
                 for (key,value) in parameters:
                     newstr = key+'='+str(value)
                     mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)
@@ -1708,7 +1718,7 @@ def modifyParameters(inScript,outScript, parameters):
     
 #----------------------------------------------------------------------
 
-def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
+def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID,removerestart=False):
     '''
     setup a test where I have added additional parameters to the data set.
     '''
@@ -1760,7 +1770,7 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID):
                 scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
 
                 #if not os.path.isfile(scriptPath):
-                modifyParameters(myscript,myOutScript,parameters)
+                modifyParameters(myscript,myOutScript,parameters,removerestart=removerestart)
                 shutil.copy(myOutScript,scriptDir)
 
         # switch back to original directory
@@ -1839,6 +1849,8 @@ def parseLog_newlog_simple(logfile,serial=False):
 
     chanchunksRE = re.compile(r"INFO\tSynthesisImagerVi2::appendToMapperList\(ftm\)\+\tSetting chanchunks to (?P<chanchunks>.*?)\n")
 
+    nrowsRE = re.compile(r"SynthesisImagerVi2::selectData 	  NRows selected : (?P<nrows>.*?)\n")
+
     # Hmm... I'm not sure this makes sense here. The old parallel is
     # reports per node, which makes it harder to parse the
     # output. Maybe only good for serial cross-checks?
@@ -1855,6 +1867,7 @@ def parseLog_newlog_simple(logfile,serial=False):
     results = {}
     specmode=''
     commonbeam = False
+    nrows = np.array([],dtype='int')
 
     # go through file
     for line in filein:
@@ -1910,6 +1923,9 @@ def parseLog_newlog_simple(logfile,serial=False):
             results['nmajordone'] = int(resultTcleanRE.search(line).group('nmajordone'))
             results['stopcode'] = int(resultTcleanRE.search(line).group('stopcode'))
 
+        if nrowsRE.search(line):
+            nrows = np.append(nrows,int(nrowsRE.search(line).group('nrows')))
+
         # capture the end of the clean
         if tcleanEndRE.search(line):
             endTimeStr = dateFmtRE.search(line)
@@ -1942,12 +1958,19 @@ def parseLog_newlog_simple(logfile,serial=False):
             if 'chanchunks' not in results.keys():
                 results['chanchunks'] = 0
 
+            if results['iter'] is not 'iter2':
+                results['nrows'] = np.sum(nrows)
+            else:
+                results['nrows'] = np.sum(nrows[0:int(len(nrows)/2.0)])
+
+
             allresults[imagename] = results
 
             results = {}
             specmode=''
             imagename=''
             commonbeam=False
+            nrows = np.array([],dtype='int')
 
     filein.close()
 
@@ -2068,6 +2091,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
     pdiffMaskArr = np.array([])
     aspectRatioArr = np.array([])
     chanchunksArr = np.array([])
+    nrowsArr = np.array([])
 
     if serial:
         cyclethreshold1Arr = ma.array([])
@@ -2109,6 +2133,8 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                     tcleanTime1Arr = np.append(tcleanTime1,tcleanTime1Arr)
 
                     chanchunksArr = np.append(inDict1[project][image]['chanchunks'],chanchunksArr)
+
+                    nrowsArr = np.append(inDict1[project][image]['nrows'],nrowsArr)
 
                     if image in inDict2[project]:
 
@@ -2217,8 +2243,9 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                tcleanTime1Arr,
                tcleanTime2Arr,
                pdiffArr,
-               chanchunksArr],
-              names=('project','imagename','iter','specmode','imsize1','imsize2','aspectRatio','nchan','gridder','array','totalSize','tcleanTime_'+label1, 'tcleanTime_'+label2,'pdiff','chanchunks'),masked=True)
+               chanchunksArr,
+               nrowsArr],
+              names=('project','imagename','iter','specmode','imsize1','imsize2','aspectRatio','nchan','gridder','array','totalSize','tcleanTime_'+label1, 'tcleanTime_'+label2,'pdiff','chanchunks','nrows'),masked=True)
 
 
     if serial:
