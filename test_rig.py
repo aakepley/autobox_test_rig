@@ -171,16 +171,20 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                                 fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+".tt0"+"'):\n")
                                 fileout.write("\t shutil.copytree(src='"+imagename.replace('iter1','iter0')+ext+".tt0', dst='"+imagename+ext+".tt0')\n")
                             elif ext == '.workdirectory':
+                                iter0work = imagename.replace('iter1','iter0')+ext
+                                iter1work = imagename+ext
 
-                                fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
-                                fileout.write("\t iter0work = '" + imagename.replace('iter1','iter0')+ext+"'\n")
-                                fileout.write("\t iter1work = '" + imagename+ext+ "'\n")
-                                fileout.write("\t os.mkdir(iter1work)\n")
-                                fileout.write("\t dirlist = os.listdir(iter0work)\n")
-                                fileout.write("\t for mydir in dirlist:\n")
-                                fileout.write("\t\t iter0 = os.path.join(iter0work,mydir)\n")
-                                fileout.write("\t\t iter1 = os.path.join(iter1work,mydir.replace('iter0','iter1'))\n")
-                                fileout.write("\t\t shutil.copytree(src=iter0, dst=iter1)\n")
+                                fileout.write("if os.path.exists('"+iter0work+"'):\n")
+                                fileout.write("\t shutil.copytree(src='"+iter0work+"', dst='"+iter1work+"')\n")
+                                # more complex method below not needed and causes tclean failures.
+                                #fileout.write("\t iter0work = '" + imagename.replace('iter1','iter0')+ext+"'\n")
+                                #fileout.write("\t iter1work = '" + imagename+ext+ "'\n")
+                                #fileout.write("\t os.mkdir(iter1work)\n")
+                                #fileout.write("\t dirlist = os.listdir(iter0work)\n")
+                                #fileout.write("\t for mydir in dirlist:\n")
+                                #fileout.write("\t\t iter0 = os.path.join(iter0work,mydir)\n")
+                                #fileout.write("\t\t iter1 = os.path.join(iter1work,mydir.replace('iter0','iter1'))\n")
+                                #fileout.write("\t\t shutil.copytree(src=iter0, dst=iter1)\n")
 
                             elif ext == '.gridwt_moswt':
 
@@ -203,15 +207,21 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
                         for ext in imageExt:
                             
                             if ext == '.workdirectory':
-                                fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
-                                fileout.write("\t iter0work = '" + imagename.replace('iter1','iter0')+ext+"'\n")
-                                fileout.write("\t iter1work = '" + imagename+ext+ "'\n")
-                                fileout.write("\t os.mkdir(iter1work)\n")
-                                fileout.write("\t dirlist = os.listdir(iter0work)\n")
-                                fileout.write("\t for mydir in dirlist:\n")
-                                fileout.write("\t\t iter0 = os.path.join(iter0work,mydir)\n")
-                                fileout.write("\t\t iter1 = os.path.join(iter1work,mydir.replace('iter0','iter1'))\n")
-                                fileout.write("\t\t shutil.copytree(src=iter0, dst=iter1)\n")
+                                iter0work = imagename.replace('iter1','iter0')+ext
+                                iter1work = imagename+ext
+
+                                fileout.write("if os.path.exists('"+iter0work+"'):\n")
+                                fileout.write("\t shutil.copytree(src='"+iter0work+"', dst='"+iter1work+"')\n")
+                                
+                                #fileout.write("if os.path.exists('"+imagename.replace('iter1','iter0')+ext+"'):\n")
+                                #fileout.write("\t iter0work = '" + imagename.replace('iter1','iter0')+ext+"'\n")
+                                #fileout.write("\t iter1work = '" + imagename+ext+ "'\n")
+                                #fileout.write("\t os.mkdir(iter1work)\n")
+                                #fileout.write("\t dirlist = os.listdir(iter0work)\n")
+                                #fileout.write("\t for mydir in dirlist:\n")
+                                #fileout.write("\t\t iter0 = os.path.join(iter0work,mydir)\n")
+                                #fileout.write("\t\t iter1 = os.path.join(iter1work,mydir.replace('iter0','iter1'))\n")
+                                #fileout.write("\t\t shutil.copytree(src=iter0, dst=iter1)\n")
 
                             else:
 
