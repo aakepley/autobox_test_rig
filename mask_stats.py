@@ -45,22 +45,44 @@ def compareMask(baseMaskPath,testMaskPath,writer,label=None):
 
     import csv
 
-
     mask = os.path.basename(baseMaskPath).replace('.mask','')
     mydir = os.path.basename(os.path.dirname(baseMaskPath))
 
     ia.open(baseMaskPath)
     baseImageStats = ia.statistics()
+    baseImageStatsPerChan = ia.statistics(axes=[0,1])
     ia.close()
-    nPixMask = baseImageStats['sum'][0]
 
+    nPixMask = baseImageStats['sum'][0]
+    
+    nChanMaskBase = np.sum(baseImageStatsPerChan['sum'] > 0)
+    nPixMaxMaskBase = baseImageStatsPerChan['sum'].max()
+
+    if os.path.exists(baseMaskPath.replace(".mask",".pb")):
+        pb = baseMaskPath.replace(".mask",".pb")
+    else:
+        pb = baseMaskPath.replace(".mask",".pb.tt0")
+    FOVPixelsBase = getFOVPixels(pb,pblimit=0.2)
+    
+    
     if os.path.exists(testMaskPath):
         ia.open(testMaskPath)
         testMaskStats = ia.statistics()
+        testMaskStatsPerChan = ia.statistics(axes=[0,1])
         ia.close()
     
         nPixMaskTest = testMaskStats['sum'][0]
 
+        nChanMaskTest = np.sum(testMaskStatsPerChan['sum'] > 0)
+        nPixMaxMaskTest = testMaskStatsPerChan['sum'].max()
+
+        if os.path.exists(testMaskPath.replace(".mask",".pb")):
+            pb = testMaskPath.replace(".mask",".pb")
+        else:
+            pb = testMaskPath.replace(".mask",".pb.tt0")
+
+        FOVPixelsTest = getFOVPixels(pb,pblimit=0.2)
+    
         diffImage = mask+'.diff'
         if not os.path.exists(diffImage):
              divexpr = '\"'+testMaskPath + '\"-\"'+ baseMaskPath+'\"'
@@ -80,14 +102,14 @@ def compareMask(baseMaskPath,testMaskPath,writer,label=None):
         if nPixMask > 0:
             fracDiff = nPixDiff/nPixMask
             if label:
-                writer.writerow([label,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+                writer.writerow([label,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff, nChanMaskBase, nChanMaskTest, nPixMaxMaskBase, nPixMaxMaskTest, FOVPixelsBase, FOVPixelsTest])
             else:
-                 writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff])
+                 writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest,fracDiff, nChanMaskBase, nChanMaskTest, nPixMaxMaskBase, nPixMaxMaskTest, FOVPixelsBase, FOVPixelsTest])
         else:
             if label:
-                writer.writerow([label,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+                writer.writerow([label,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--', nChanMaskBase, nChanMaskTest, nPixMaxMaskBase, nPixMaxMaskTest,FOVPixelsBase, FOVPixelsTest])
             else:
-                writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--'])
+                writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--', nChanMaskBase, nChanMaskTest, nPixMaxMaskBase, nPixMaxMaskTest,FOVPixelsBase, FOVPixelsTest])
 
     else:
          print "no corresponding test image: ", testMaskPath
@@ -140,7 +162,7 @@ def runMaskComparison(baseDir, testDir, outFile,projects=None):
 
             writer.writerow(["# Base: "+baseDir])
             writer.writerow(["# Test: "+testDir])
-            writer.writerow(["Project","Mask","nPixMaskBase","nPixMaskTest","nPixDiff","nPixDiffBase","nPixDiffTest","fracDiff"])
+            writer.writerow(["Project","Mask","nPixMaskBase","nPixMaskTest","nPixDiff","nPixDiffBase","nPixDiffTest","fracDiff", "nChanMaskBase","nChanMaskTest","maxMaskBase","maxMaskTest", "FOVPixelsBase","FOVPixelsTest"])
 
             for mydir in dataDirs:
                 if (projectRE.match(mydir)) and (mydir in projects):
@@ -286,7 +308,7 @@ def getFOVPixels(pb,pblimit=0.2):
     ia.close()
     ia.done()
 
-    nPixFOV = stats['npts'][0]
+    nPixFOV = np.mean(stats['npts'])
 
     return nPixFOV
 
@@ -711,6 +733,7 @@ def calcDiffImage(baseImage,testImage,diffImage='test.diff'):
         
     return statspdiff, outstatspdiff
 
+#----------------------------------------------------------------------
 
 def runImageDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
     '''
@@ -790,7 +813,7 @@ def runImageDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
                                                          "" ,"" ,"" ])
 
 
-
+#----------------------------------------------------------------------
 
 def runPBDiff(baseDir,testDir, projects=[],exclude=[],plotit=True, **kwargs):
     '''
@@ -1020,4 +1043,78 @@ def generateSpectra(baseDir, projects=None):
                 cubelist.extend(glob.glob(os.path.join(baseDir,mydir,'*.cube.I.iter1.residual')))
 
                 for cube in cubelist:
+                    
                     au.plotSpectrumFromMask(cube, figsize=(12,5),plotfile=True)
+
+
+#----------------------------------------------------------------------
+
+def checkResidualMaskStats(imagename, outfile='test.csv'):
+    '''
+
+    Purpose: go through each mask and residual image for each major
+    cycle, calculate the peak residual, and
+
+    imagename: root image name
+
+    '''
+    
+    f = open(outfile,'w')
+
+    imageList = glob.glob("*inputres*")
+
+    f.write('cycle, imagename, mask, max\n')
+
+    for image in imageList:
+
+        cycle = int(re.search('inputres(.*)',image).group(1))
+        mask = image.replace('inputres','autothresh')
+        
+        stats = imstat(imagename=image,
+                       mask=mask)
+        
+        maxresid = max(stats['max'][0], abs(stats['min'])[0])
+
+        f.write("{:d}, {:s}, {:s}, {:f}\n".format(cycle, image, mask, maxresid)) 
+
+    f.close()
+
+
+#----------------------------------------------------------------------
+
+def calc_b75(baseDir, outFile, projects=None):
+    '''
+    calculate b75 for a series of projects.
+    '''
+    
+    import csv
+    import math
+
+    projectRE = re.compile("\w{4}\.\w\.\d{5}\.\w_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}\.\d{3}")
+ 
+    if os.path.exists(baseDir):
+        dataDirs = os.listdir(baseDir)
+
+        if not projects:
+            projects = dataDirs
+        
+        with open(outFile,'w') as csvfile:
+            writer = csv.writer(csvfile,delimiter=',')
+
+            writer.writerow(["# Base: "+baseDir])
+            writer.writerow(["Project","b75"])
+
+            for mydir in dataDirs:
+                if (projectRE.match(mydir)) and (mydir in projects):
+                    baseProject = os.path.join(baseDir,mydir)
+
+                    mslist= glob.glob(os.path.join(baseProject,"*_target.ms"))
+
+                    baselines = np.array(au.getBaselineLengthsMultiVis(mslist))
+
+                    ## the below might not give exactly the same value
+                    ## as the pipeline, but it should be close enough.
+                    idx = int(math.ceil(0.75*len(baselines)))
+                    b75 = baselines[idx-1] 
+
+                    writer.writerow([mydir,b75])

@@ -2464,3 +2464,7 @@ def setupPipeTest(benchmarkDir, testDir, mfsParameters=None, cubeParameters=None
 
         # switch back to original directory
         os.chdir(currentDir)
+
+
+#----------------------------------------------------------------------
+
