@@ -81,6 +81,33 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False)
     else:
         print("path doesn't exist: " + pipelineDir)
 
+#----------------------------------------------------------------------
+
+def regenerateTcleanCmds(benchmarkDir, stages=[31,33,35]):
+    ''' 
+    Purpose: regenerate Tclean commands from existing pipeline logs
+    '''
+
+    import os
+    import glob
+    import re
+
+    # if the benchmark directory exists
+    if os.path.exists(benchmarkDir):
+
+        # get all the benchmarks
+        dataDirs = os.listdir(benchmarkDir)
+
+        for mydir in dataDirs:
+            benchmarkName = re.findall('\w\w\w\w\.\w.\d\d\d\d\d\.\w_\d\d\d\d_\d\d_\d\dT\d\d_\d\d_\d\d\.\d\d\d',mydir)[0]
+
+            for stage in stages:
+                outTcleanCmd = os.path.join(benchmarkDir,mydir,benchmarkName+'_stage'+str(stage)+'.py')
+                outStageLog = os.path.join(benchmarkDir,mydir,'stage'+str(stage)+'.log')
+            
+                extractTcleanFromLog(outStageLog,os.path.join(benchmarkDir,mydir),outTcleanCmd)
+
+            os.system("cat " + os.path.join(benchmarkDir,mydir,benchmarkName)+"_stage??.py > "+os.path.join(benchmarkDir,mydir,benchmarkName)+".py")
 
 #----------------------------------------------------------------------
 
