@@ -1972,6 +1972,7 @@ def parseLog_newlog_simple(logfile,serial=False):
             # calculate overall statistics.
             results['tcleanTime'] = results['endTime']-results['startTime']
 
+
             if results['specmode'] == 'cube':
                 results['totalSize'] = results['imsize'][0] * results['imsize'][1] * results['nchan']
             else:
@@ -2166,7 +2167,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                     arrayArr = np.append(inDict1[project][image]['array'],arrayArr)
                     totalSizeArr = np.append(inDict1[project][image]['totalSize'],totalSizeArr)
 
-                    tcleanTime1 = float(inDict1[project][image]['tcleanTime'].seconds)
+                    tcleanTime1 = float(inDict1[project][image]['tcleanTime'].total_seconds())
                     tcleanTime1Arr = np.append(tcleanTime1,tcleanTime1Arr)
 
                     chanchunksArr = np.append(inDict1[project][image]['chanchunks'],chanchunksArr)
@@ -2175,7 +2176,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
 
                     if image in inDict2[project]:
 
-                        tcleanTime2 = float(inDict2[project][image]['tcleanTime'].seconds)
+                        tcleanTime2 = float(inDict2[project][image]['tcleanTime'].total_seconds())
                         pdiff = 100.0* (tcleanTime2 - tcleanTime1) / tcleanTime1
 
                         tcleanTime2Arr = ma.append(tcleanTime2,tcleanTime2Arr)
