@@ -684,58 +684,57 @@ def tCleanTime_newlogs(testDir):
         # go through logs and extract info.
         for logfile in logfilelist:
 
+            print("reading "+logfile)
             f = open(logfile,'r')
-            
-            line = f.readline()
-            
-            if casaonlyRE.search(line) and not mpiRE.search(line):
-                line = f.readline()
-            
-            # if it's in mpi mode, figure out how many nodes were used.
-            if mpiRE.search(line):
-                mpimax = 0
 
-                while not mpiStopRE.search(line):
-                                        
+            mpimax = 0
+            for line in f:
+            
+                if mpiStopRE.search(line):
+                    break
+
+                #if it's in mpi mode, figure out how many nodes were used.
+                if mpiRE.search(line):
                     mpinum = int(mpiRE.search(line).group('mpinum'))
+                            
                     if mpinum > mpimax:
                         mpimax = mpinum
-                    line = f.readline()
-                    while not mpiRE.search(line):
-                        line = f.readline()                
                     
-                f.close()
-
-                split_mpi_logs(logfile,n=mpimax+1)
-
-                for mpi in range(1,mpimax+1):
-                    mpistr = 'mpi'+str(mpi)
-                    tmpresults = parseLog_newlog(logfile.replace('.log','_'+mpistr+'.log'))
-                    
-                    for imagename in tmpresults.keys():
-                        if imagename in allresults:
-                            allresults[imagename][mpistr] = tmpresults[imagename]
-                        else:
-                            allresults[imagename] = {}
-                            allresults[imagename][mpistr] = tmpresults[imagename]
-                    
-                    #ipdb.set_trace()
-
-            else:
+            f.close()
                 
-                f.close()
+            print("splitting mpi logs")
+            print("mpimax=",mpimax)
 
-                tmpresults = parseLog_newlog(logfile)
-                #mpistr='mpi0'
+            split_mpi_logs(logfile,n=mpimax+1)
 
-                #for imagename in tmpresults.keys():
-                #    if imagename in allresults:
-                #        allresults[imagename][mpistr] = tmpresults[imagename]
-                #    else:
-                #        allresults[imagename] = {}
-                #        allresults[imagename][mpistr] = tmpresults[imagename]
+            for mpi in range(1,mpimax+1):
+                mpistr = 'mpi'+str(mpi)
+                tmpresults = parseLog_newlog(logfile.replace('.log','_'+mpistr+'.log'))
+                    
+                for imagename in tmpresults.keys():
+                    if imagename in allresults:
+                        allresults[imagename][mpistr] = tmpresults[imagename]
+                    else:
+                        allresults[imagename] = {}
+                        allresults[imagename][mpistr] = tmpresults[imagename]
+                    
+                        #ipdb.set_trace()
+
+        # else:
+                
+        #     f.close()
+
+        #     tmpresults = parseLog_newlog(logfile)
+        #     #mpistr='mpi0'
+
+        #     #for imagename in tmpresults.keys():
+        #     #    if imagename in allresults:
+        #     #        allresults[imagename][mpistr] = tmpresults[imagename]
+        #     #    else:
+        #     #        allresults[imagename] = {}
+        #     #        allresults[imagename][mpistr] = tmpresults[imagename]
                  
-                allresults = tmpresults
+        #     allresults = tmpresults
 
     else:
         print("no path found")
@@ -758,8 +757,8 @@ def parseLog_newlog(logfile):
     # regex patterns for below.
     tcleanBeginRE = re.compile(r"Begin Task: tclean")
 
-    imagenameRE = re.compile(r'imagename=\"(?P<imagename>.*?)\"')
-    specmodeRE = re.compile(r'specmode=\"(?P<specmode>.*?)\"')
+    imagenameRE = re.compile(r'imagename=\'(?P<imagename>.*?)\'')
+    specmodeRE = re.compile(r'specmode=\'(?P<specmode>.*?)\'')
 
     startMaskRE = re.compile(r'Generating AutoMask')        
     sidelobeRE = re.compile(r'SidelobeLevel = ')
@@ -813,6 +812,7 @@ def parseLog_newlog(logfile):
 
         # capture start of tclean
         if tcleanBeginRE.search(line):
+
             startTimeStr = dateFmtRE.search(line)
             if startTimeStr:                
                 results['startTime'] = datetime.strptime(startTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
@@ -820,6 +820,7 @@ def parseLog_newlog(logfile):
         # capture image name
         if imagenameRE.search(line):
             imagename = imagenameRE.search(line).group('imagename')
+
 
         # capture line vs. continuum
         if specmodeRE.search(line):
@@ -838,81 +839,82 @@ def parseLog_newlog(logfile):
                     cycleresults['maskStartTime'] = datetime.strptime(maskStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')       
 
             # capture noise calculation
-            if sidelobeRE.search(line):
-                sidelobeStartTimeStr = dateFmtRE.search(line)
-                if sidelobeStartTimeStr:
-                    cycleresults['noiseEndTime'] = datetime.strptime(sidelobeStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-                    cycleresults['noiseTime'] = cycleresults['noiseEndTime'] - cycleresults['maskStartTime']
+            #if sidelobeRE.search(line):
+            #    sidelobeStartTimeStr = dateFmtRE.search(line)
+            #    if sidelobeStartTimeStr:
+            #        cycleresults['noiseEndTime'] = datetime.strptime(sidelobeStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+             #       cycleresults['noiseTime'] = cycleresults['noiseEndTime'] - cycleresults['maskStartTime']
 
             # capture the threshold time
-            if startThresholdRE.search(line):
-                startThresholdTimeStr = dateFmtRE.search(line)
-                if startThresholdTimeStr:
-                    cycleresults['startThresholdTime'] = datetime.strptime(startThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endThresholdRE.search(line):
-                endThresholdTimeStr = dateFmtRE.search(line)
-                if endThresholdTimeStr:
-                    cycleresults['endThresholdTime'] = datetime.strptime(endThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startThresholdRE.search(line):
+            #    startThresholdTimeStr = dateFmtRE.search(line)
+            #    if startThresholdTimeStr:
+            #        cycleresults['startThresholdTime'] = datetime.strptime(startThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endThresholdRE.search(line):
+            #    endThresholdTimeStr = dateFmtRE.search(line)
+            #    if endThresholdTimeStr:
+            #        cycleresults['endThresholdTime'] = datetime.strptime(endThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
             # capture the prune time
-            if startPrune1RE.search(line):
-                startPrune1TimeStr = dateFmtRE.search(line)
-                if startPrune1TimeStr:
-                    cycleresults['startPrune1Time'] = datetime.strptime(startPrune1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endPrune1RE.search(line):
-                endPrune1TimeStr = dateFmtRE.search(line)
-                if endPrune1TimeStr:
-                    cycleresults['endPrune1Time'] = datetime.strptime(endPrune1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startPrune1RE.search(line):
+            #    startPrune1TimeStr = dateFmtRE.search(line)
+            #    if startPrune1TimeStr:
+             #       cycleresults['startPrune1Time'] = datetime.strptime(startPrune1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endPrune1RE.search(line):
+             #   endPrune1TimeStr = dateFmtRE.search(line)
+             #   if endPrune1TimeStr:
+              #      cycleresults['endPrune1Time'] = datetime.strptime(endPrune1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
             # capture the smooth time
-            if startSmooth1RE.search(line):
-                startSmooth1TimeStr = dateFmtRE.search(line)
-                if startSmooth1TimeStr:
-                    cycleresults['startSmooth1Time'] = datetime.strptime(startSmooth1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endSmooth1RE.search(line):
-                endSmooth1TimeStr = dateFmtRE.search(line)
-                if endSmooth1TimeStr:
-                    cycleresults['endSmooth1Time'] = datetime.strptime(endSmooth1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startSmooth1RE.search(line):
+            #    startSmooth1TimeStr = dateFmtRE.search(line)
+            #    if startSmooth1TimeStr:
+            #        cycleresults['startSmooth1Time'] = datetime.strptime(startSmooth1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endSmooth1RE.search(line):
+            #    endSmooth1TimeStr = dateFmtRE.search(line)
+            #    if endSmooth1TimeStr:
+            #        cycleresults['endSmooth1Time'] = datetime.strptime(endSmooth1TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
             # capture the grow
-            if startGrowRE.search(line):
-                startGrowTimeStr = dateFmtRE.search(line)
-                if startGrowTimeStr:
-                    cycleresults['startGrowTime'] = datetime.strptime(startGrowTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endGrowRE.search(line):
-                endGrowTimeStr = dateFmtRE.search(line)
-                if endGrowTimeStr:
-                    cycleresults['endGrowTime'] = datetime.strptime(endGrowTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startGrowRE.search(line):
+            #    startGrowTimeStr = dateFmtRE.search(line)
+            #    if startGrowTimeStr:
+            #        cycleresults['startGrowTime'] = datetime.strptime(startGrowTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endGrowRE.search(line):
+            #    endGrowTimeStr = dateFmtRE.search(line)
+            #    if endGrowTimeStr:
+             #       cycleresults['endGrowTime'] = datetime.strptime(endGrowTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
             # capture 2nd prune
-            if startPrune2RE.search(line):
-                startPrune2TimeStr = dateFmtRE.search(line)
-                if startPrune2TimeStr:
-                    cycleresults['startPrune2Time'] = datetime.strptime(startPrune2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endPrune2RE.search(line):
-                endPrune2TimeStr = dateFmtRE.search(line)
-                if endPrune2TimeStr:
-                    cycleresults['endPrune2Time'] = datetime.strptime(endPrune2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startPrune2RE.search(line):
+            #    startPrune2TimeStr = dateFmtRE.search(line)
+            #    if startPrune2TimeStr:
+            #        cycleresults['startPrune2Time'] = datetime.strptime(startPrune2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endPrune2RE.search(line):
+            #    endPrune2TimeStr = dateFmtRE.search(line)
+            #    if endPrune2TimeStr:
+            #        cycleresults['endPrune2Time'] = datetime.strptime(endPrune2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
             # capture 2nd smooth
-            if startSmooth2RE.search(line):
-                startSmooth2TimeStr = dateFmtRE.search(line)
-                if startSmooth2TimeStr:
-                    cycleresults['startSmooth2Time'] = datetime.strptime(startSmooth2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endSmooth2RE.search(line):
-                endSmooth2TimeStr = dateFmtRE.search(line)
-                if endSmooth2TimeStr:
-                    cycleresults['endSmooth2Time'] = datetime.strptime(endSmooth2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startSmooth2RE.search(line):
+            #    startSmooth2TimeStr = dateFmtRE.search(line)
+            #    if startSmooth2TimeStr:
+            #        cycleresults['startSmooth2Time'] = datetime.strptime(startSmooth2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endSmooth2RE.search(line):
+            #    endSmooth2TimeStr = dateFmtRE.search(line)
+            #    if endSmooth2TimeStr:
+            #        cycleresults['endSmooth2Time'] = datetime.strptime(endSmooth2TimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
 
             # capture the negative threshold
-            if startNegativeThresholdRE.search(line):
-                startNegativeThresholdTimeStr = dateFmtRE.search(line)
-                if startNegativeThresholdTimeStr:
-                    cycleresults['startNegativeThresholdTime'] = datetime.strptime(startNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
-            if endNegativeThresholdRE.search(line):
-                endNegativeThresholdTimeStr = dateFmtRE.search(line)
-                if endNegativeThresholdTimeStr:
-                    cycleresults['endNegativeThresholdTime'] = datetime.strptime(endNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if startNegativeThresholdRE.search(line):
+            #    startNegativeThresholdTimeStr = dateFmtRE.search(line)
+            #    if startNegativeThresholdTimeStr:
+            #        cycleresults['startNegativeThresholdTime'] = datetime.strptime(startNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+            #if endNegativeThresholdRE.search(line):
+            #    endNegativeThresholdTimeStr = dateFmtRE.search(line)
+            #    if endNegativeThresholdTimeStr:
+            #        cycleresults['endNegativeThresholdTime'] = datetime.strptime(endNegativeThresholdTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
             # capture amount of flux in model
             if modelFluxRE.search(line):
                 modelFlux = modelFluxRE.search(line).group('flux')
@@ -943,36 +945,42 @@ def parseLog_newlog(logfile):
                     # calculate times
                     cycleresults['totalMaskTime'] = cycleresults['startMinorCycleTime'] - cycleresults['maskStartTime']
                     cycleresults['cycleTime'] = cycleresults['endMajorCycleTime'] - cycleresults['maskStartTime']
-                    cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
+                    
+                    if 'startMajorCycleTime' in cycleresults.keys():
+                        cycleresults['majorCycleTime'] = cycleresults['startMinorCycleTime']-cycleresults['startMajorCycleTime']
+
+                    cycleresults['minorCycleTime'] = cycleresults['endMajorCycleTime'] - cycleresults['startMinorCycleTime']
+
+                    #cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
 
                     # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
-                    if 'startPrune1Time' in cycleresults:
+                    #if 'startPrune1Time' in cycleresults:
                         # To keep this calculation consistent with the previous logs, the prune1Time is actually the Prune1Time+smooth1Time.
                         # I also calculate the smooth1Time, so that should give me how long the the smooth took compared to the prune+smooth.
-                        if 'startGrowTime' in cycleresults:
-                            cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
-                        else:
-                            cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
+                        #if 'startGrowTime' in cycleresults:
+                        #    cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
+                        #else:
+                        #    cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
 
                     # should always smooth
-                    cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
+                    #cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
 
                     # The following might not always happen depending on how the auto-multithresh parameters are set.
-                    if 'startGrowTime' in cycleresults:
-                        cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
+                    #if 'startGrowTime' in cycleresults:
+                    #    cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
 
-                    if 'startPrune2Time' in cycleresults:
+                    #if 'startPrune2Time' in cycleresults:
                         # Ditto the comments for prune1Time
-                        if 'startNegativeThresholdTime' in cycleresults:
-                            cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
-                        else:
-                            cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
+                    #    if 'startNegativeThresholdTime' in cycleresults:
+                    #        cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
+                     #   else:
+                     #       cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
 
-                    if 'startSmooth2Time' in cycleresults:
-                        cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
+                    #if 'startSmooth2Time' in cycleresults:
+                    #    cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
 
-                    if 'startNegativeThresholdTime' in cycleresults:
-                        cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
+                    #if 'startNegativeThresholdTime' in cycleresults:
+                    #    cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
 
                     ## save major cycle information here
                     results[cycle] = cycleresults
@@ -995,33 +1003,33 @@ def parseLog_newlog(logfile):
                 else:
                     cycleresults['cycleTime'] = cycleresults['endCleanTime'] - cycleresults['maskStartTime']
 
-                cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
+                #cycleresults['thresholdTime'] = cycleresults['endThresholdTime'] - cycleresults['startThresholdTime']
 
                 # inserting this in just in case setting minbeamfrac=0.0 turns off the logger messages. Need to check this.
-                if 'startPrune1Time' in cycleresults:
-                    if 'startGrowTime' in cycleresults:
-                        cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
-                    else:
-                        cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
+                #if 'startPrune1Time' in cycleresults:
+                #    if 'startGrowTime' in cycleresults:
+                #        cycleresults['prune1Time'] = cycleresults['startGrowTime'] - cycleresults['startPrune1Time']
+                #    else:
+                #        cycleresults['prune1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startPrune1Time']
 
                 # should always smooth
-                cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
+                #cycleresults['smooth1Time'] = cycleresults['endSmooth1Time'] - cycleresults['startSmooth1Time']
 
                 # The following might not always happen depending on how the auto-multithresh parameters are set.
-                if 'startGrowTime' in cycleresults:
-                    cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
+                #if 'startGrowTime' in cycleresults:
+                #    cycleresults['growTime'] = cycleresults['endGrowTime'] - cycleresults['startGrowTime']
 
-                if 'startPrune2Time' in cycleresults:
-                    if 'startNegativeThresholdTime' in cycleresults:
-                        cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
-                    else:
-                        cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
+                #if 'startPrune2Time' in cycleresults:
+                #    if 'startNegativeThresholdTime' in cycleresults:
+                #        cycleresults['prune2Time'] = cycleresults['startNegativeThresholdTime'] - cycleresults['startPrune2Time']
+                #    else:
+                #        cycleresults['prune2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startPrune2Time']
 
-                if 'startSmooth2Time' in cycleresults:
-                    cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
+                #if 'startSmooth2Time' in cycleresults:
+                #    cycleresults['smooth2Time'] = cycleresults['endSmooth2Time'] - cycleresults['startSmooth2Time']
 
-                if 'startNegativeThresholdTime' in cycleresults:
-                    cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
+                #if 'startNegativeThresholdTime' in cycleresults:
+                #    cycleresults['negativeThresholdTime'] = cycleresults['endNegativeThresholdTime'] - cycleresults['startNegativeThresholdTime']
 
                 ## save major cycle information here
                 results[cycle] = cycleresults
@@ -1097,28 +1105,30 @@ def flattenTimingData(inDict):
                 'endTime': [],
                 'startMinorCycleTime': [],
                 'cycleTime': [],
-                'startPrune2Time': [],
-                'startGrowTime': [],
+                'majorCycleTime': [],
+                'minorCycleTime': [],
+                #'startPrune2Time': [],
+                #'startGrowTime': [],
                 'totalMaskTime': [],
-                'startPrune1Time': [],
+                #'startPrune1Time': [],
                 'endMajorCycleTime': [],
-                'prune2Time': [],
-                'thresholdTime': [],
+                #'prune2Time': [],
+                #'thresholdTime': [],
                 'startMajorCycleTime': [],
-                'prune1Time': [],
+                #'prune1Time': [],
                 'maskStartTime': [],
-                'growTime': [],
+                #'growTime': [],
                 'endCleanTime': [],
-                'startNegativeThresholdTime': [],
-                'endNegativeThresholdTime': [],
-                'negativeThresholdTime': [],
-                'smooth1Time':[],
-                'smooth2Time': [],
+                #'startNegativeThresholdTime': [],
+                #'endNegativeThresholdTime': [],
+                #'negativeThresholdTime': [],
+                #'smooth1Time':[],
+                #'smooth2Time': [],
                 'startRestoreTime':[],
                 'endRestoreTime': [],
                 'restoreTime':[],
-                'noiseTime': [],
-                'endNoiseTime':[],
+                #'noiseTime': [],
+                #'endNoiseTime':[],
                 'modelFlux':[],
                 'mpi':[]}
     
