@@ -1672,7 +1672,7 @@ def addParameters(inScript,outScript,parameters):
                 
 #----------------------------------------------------------------------
 
-def modifyParameters(inScript,outScript, parameters, removerestart=False):
+def modifyParameters(inScript,outScript, parameters, delparams=None, removerestart=False):
     '''
 
     modify the parameter values
@@ -1719,6 +1719,8 @@ def modifyParameters(inScript,outScript, parameters, removerestart=False):
     #tcleanRestart = re.compile(r"restoringbeam='common', *., niter=0, *., parallel=False")
     tcleanRestart = re.compile(r"specmode='cube', .*, restoringbeam='common', .*, niter=0, .*, parallel=False\)")
 
+    cubeRE = re.compile(r"specmode='cube'")
+
     if os.path.exists(inScript):
         filein = open(inScript,'r')
         fileout = open(outScript,'w')
@@ -1735,17 +1737,28 @@ def modifyParameters(inScript,outScript, parameters, removerestart=False):
 
                 for (key,value) in parameters:
                     newstr = key+'='+str(value)
-                    mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)
+                    mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)           
+                 
                     if mymatch:
-                        print("match found! modifying input parameter" )
-                        line = line.replace(mymatch.group('mykey'),newstr)
+                        if ((value == 'briggsbwtaper') or ('perchanweightdensity') and not cubeRE.search(line)):
+                            print("briggsbwtaper or perchanweightdensity selected and image isn't cube. not modifying command'")
+                            line = line
+                        else:
+                            print("match found! modifying input parameter" )
+                            line = line.replace(mymatch.group('mykey'),newstr)
                     else:
                         print("no match found for "+key)
                         print("adding to parameter list")
                         line = line.replace(')',', '+newstr+')')
 
+                for key in delparams:
+                    mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)
+                    if mymatch:
+                        print("deleting parameter")
+                        line = line.replace(mymatch[0],'')
+    
             fileout.write(line)
-                
+
 
         filein.close()
         fileout.close()
@@ -1755,7 +1768,7 @@ def modifyParameters(inScript,outScript, parameters, removerestart=False):
     
 #----------------------------------------------------------------------
 
-def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID,removerestart=False):
+def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID,delparams=None, removerestart=False):
     '''
     setup a test where I have added additional parameters to the data set.
     '''
@@ -1771,7 +1784,7 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID,removerest
     #   scripts and directory structure for test
 
     # Date      Programmer              Description of Code
-    #----------------------------------------------------------------------
+    #---------------------------------------------------7-------------------
     # 7/27/2018 A.A. Kepley             Original Code
 
     import shutil
@@ -1807,7 +1820,7 @@ def setupNewParameterTest(benchmarkDir, testDir, parameters, scriptID,removerest
                 scriptPath = os.path.join(scriptDir,os.path.basename(myOutScript))
 
                 #if not os.path.isfile(scriptPath):
-                modifyParameters(myscript,myOutScript,parameters,removerestart=removerestart)
+                modifyParameters(myscript,myOutScript,parameters,delparams=delparams, removerestart=removerestart)
                 shutil.copy(myOutScript,scriptDir)
 
         # switch back to original directory
