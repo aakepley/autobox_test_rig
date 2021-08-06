@@ -1739,8 +1739,10 @@ def modifyParameters(inScript,outScript, parameters, delparams=None, removeresta
                     newstr = key+'='+str(value)
                     mymatch = re.search("(?P<mykey>"+key+"=.*?)[,|\)]",line)           
                  
+                    #breakpoint()
+
                     if mymatch:
-                        if ((value == 'briggsbwtaper') or ('perchanweightdensity') and not cubeRE.search(line)):
+                        if (((value == "'briggsbwtaper'") or (key == 'perchanweightdensity')) and (not cubeRE.search(line))):
                             print("briggsbwtaper or perchanweightdensity selected and image isn't cube. not modifying command'")
                             line = line
                         else:
@@ -1956,7 +1958,7 @@ def parseLog_newlog_simple(logfile,serial=False):
             results['gridder'] = gridderRE.search(line).group('gridder')
 
         if antennaRE.search(line):
-            antennalist = ast.literal_eval(antennaRE.search(line).group('antennalist'))
+            antennalist = ast.literal_eval(antennaRE.search(line).group('antennalist').replace('&',''))
             # crude and not necessarily true for early data, but
             # should be okay now.
             if len(antennalist) > 16:
