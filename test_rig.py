@@ -1,9 +1,10 @@
-def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False):
+import ipdb
+
+def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False, contsubstages=None):
     '''
     copy the *target.ms and casalog data from imaging stages of a pipeline
     run and put them in their own test directory
     '''
-
 
     # Purpose: extract the tclean commands and target.ms files from the
     # Cycle 5 pipeline tests.
@@ -12,6 +13,9 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False)
     #       List of pipeline data directories
     #       List of stages to extract casalog files for
     #       output directory name
+    #       copyCont: copy continuum
+    #       contsubstages: continuum subtraction stages to copy
+
     
     # Output:
     #       target files and casalog files for particular stages
@@ -22,7 +26,8 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False)
     # Date          Programmer              Description of Code
     # ----------------------------------------------------------------------
     # 10/26/2017    A.A. Kepley             Original Code
-    
+    # 10/14/2021    A.A. Kepley             Original Code
+
 
     import os.path
     import os
@@ -64,19 +69,44 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False)
                 print("Copying over stage " + str(stage)+ " log" )
                 shutil.copy(stageLog,outStageLog)
 
-            if copyCont:
-                contFile = os.path.join(os.path.split(pipelineDir)[0],'cont.dat')
-                outContFile = os.path.join(benchmarkDir,'cont.dat')
-                if not os.path.exists(outContFile):
-                    print("Copying over cont.dat file")
-                    shutil.copy(contFile,outContFile)
-
             # extracting tclean commands from the casalog file
             outTcleanCmd = os.path.join(benchmarkDir,benchmarkName+'_stage'+str(stage)+'.py')
             extractTcleanFromLog(outStageLog,benchmarkDir,outTcleanCmd)
 
         os.system("cat " + os.path.join(benchmarkDir,benchmarkName)+"_stage??.py > "+os.path.join(benchmarkDir,benchmarkName)+".py")
+        
+        # copy over the cont.data file
+        if copyCont:
+            contFile = os.path.join(os.path.split(pipelineDir)[0],'cont.dat')
+            outContFile = os.path.join(benchmarkDir,'cont.dat')
+            if not os.path.exists(outContFile):
+                print("Copying over cont.dat file")
+                shutil.copy(contFile,outContFile)
             
+            contTabs = glob.glob(os.path.join(os.path.split(pipelineDir)[0],"*.uvcont.tbl"))
+            for tab in contTabs:
+                outFile = os.path.join(benchmarkDir,os.path.basename(tab))
+                if not os.path.exists(outFile):
+                    print("copying over uvcontsub tables")
+                    shutil.copytree(tab, outFile)
+
+
+        # find, copy, and modify over relevant casalog files for uvcontsub
+        if contsubstages:
+            for stage in contsubstages:
+                stageDir = os.path.join(pipelineDir,'html/stage'+str(stage))
+                stageLog = os.path.join(stageDir,'casapy.log')
+                
+                outStageLog = os.path.join(benchmarkDir,'stage'+str(stage)+'.log')
+            
+                if not os.path.exists(outStageLog):
+                    print("Copying over stage " + str(stage)+ " log" )
+                    shutil.copy(stageLog,outStageLog)
+
+                outcontsubCmd = os.path.join(benchmarkDir,benchmarkName+'_stage'+str(stage)+'_uvcontsub.py')
+                extractContsubFromLog(outStageLog,benchmarkDir,outcontsubCmd)
+        
+        os.system("cat " + os.path.join(benchmarkDir,benchmarkName)+"_stage??_uvcontsub.py > " + os.path.join(benchmarkDir,benchmarkName)+"_uvcontsub.py")
 
     else:
         print("path doesn't exist: " + pipelineDir)
@@ -285,7 +315,72 @@ def extractTcleanFromLog(casalogfile,dataDir,outfile):
 
 #----------------------------------------------------------------------
 
+def extractContsubFromLog(casalogfile,dataDir,outfile):
+    '''
+    extract continuum fitting and subtraction commands from log
+
+    Input:
+           
+        casalogfile: logfile name
+        outfile: output file name
+        dataDir: data directory name
+    
+    Date        Programmer              Description of Code
+    ----------------------------------------------------------------------
+    10/14/2021  A.A. Kepley             Original Code
+
+    '''
+
+    import os.path
+    import re
+    import ast
+
+    if os.path.exists(casalogfile):
+        uvcontfitCmd = re.compile(r"""
+        (?P<cmd>uvcontfit\(vis='(?P<vis>.*?)' ## visibility name
+        .*\) ## end of command
+        )
+        """,re.VERBOSE)
+
+
+        applycalCmd = re.compile(r"""
+        (?P<cmd>applycal\(vis='(?P<vis>.*?)' ## visibility name
+        .*\) ## end of command
+        )
+        """,re.VERBOSE)
+
+        filein = open(casalogfile,'r')
+        fileout = open(outfile, 'w')
+        
+        for line in filein:
+            finduvcontfit = uvcontfitCmd.search(line)
+            findapplycal = applycalCmd.search(line)
+
+            if finduvcontfit:
+                cmd = finduvcontfit.group('cmd')
+                vis = finduvcontfit.group('vis')
+                newvis = dataDir+'/'+vis
+                newcmd = cmd.replace(vis,newvis,1) # only replace first (vis) instance.
+                fileout.write(newcmd+'\n')
+                fileout.write('\n')
+
+            if findapplycal:
+                cmd = findapplycal.group('cmd')
+                vis = findapplycal.group('vis')
+                newvis = dataDir+'/'+vis
+                newcmd = cmd.replace(vis,newvis,1) # only replace first (vis) instance.
+                
+                fileout.write(newcmd+'\n')
+                fileout.write('\n')
+
+
+        filein.close()
+        fileout.close()
+
+
+#----------------------------------------------------------------------
 def setupTest(benchmarkDir,testDir):
+
     '''
     Automatically populate a test directory with directories for
     individual data sets and copies over the relevant run scripts.
@@ -1719,7 +1814,7 @@ def modifyParameters(inScript,outScript, parameters, delparams=None, removeresta
     #tcleanRestart = re.compile(r"restoringbeam='common', *., niter=0, *., parallel=False")
     tcleanRestart = re.compile(r"specmode='cube', .*, restoringbeam='common', .*, niter=0, .*, parallel=False\)")
 
-    cubeRE = re.compile(r"specmode='cube'")
+    cubeRE = re.compile(r"specmode='(cube|cubesource)'")
 
     if os.path.exists(inScript):
         filein = open(inScript,'r')
@@ -1894,6 +1989,8 @@ def parseLog_newlog_simple(logfile,serial=False):
 
     gridderRE = re.compile(r"gridder=\'(?P<gridder>.*?)\'")
 
+    majorCycleRE = re.compile(r"Major Cycle (?P<nmajor>\d*)")
+
     tcleanEndRE = re.compile(r"End Task: tclean")
     
     dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
@@ -1909,7 +2006,8 @@ def parseLog_newlog_simple(logfile,serial=False):
  
     resultTcleanRE = re.compile(r"Result tclean: \{.*, 'cyclethreshold': (?P<cyclethreshold>.*?), .*, 'iterdone': (?P<iterdone>.*?), .*, 'nmajordone': (?P<nmajordone>.*?), .*, 'stopcode': (?P<stopcode>.*?),")
 
-    
+    stoppingRE = re.compile(r"Reached global stopping criterion : (?P<stopcode>.*)")
+
     # open file
     filein = open(logfile,'r')
 
@@ -1978,6 +2076,13 @@ def parseLog_newlog_simple(logfile,serial=False):
         if nrowsRE.search(line):
             nrows = np.append(nrows,int(nrowsRE.search(line).group('nrows')))
 
+        if majorCycleRE.search(line):
+            nmajor = majorCycleRE.search(line).group('nmajor')
+
+        if stoppingRE.search(line):
+            results['stopcode'] = stoppingRE.search(line).group('stopcode')
+
+
         # capture the end of the clean
         if tcleanEndRE.search(line):
             endTimeStr = dateFmtRE.search(line)
@@ -2016,6 +2121,7 @@ def parseLog_newlog_simple(logfile,serial=False):
             else:
                 results['nrows'] = np.sum(nrows[0:int(len(nrows)/2.0)])
 
+            results['nmajor'] = nmajor
 
             allresults[imagename] = results
 
@@ -2023,6 +2129,7 @@ def parseLog_newlog_simple(logfile,serial=False):
             specmode=''
             imagename=''
             commonbeam=False
+            nmajor = ''
             nrows = np.array([],dtype='int')
 
     filein.close()
