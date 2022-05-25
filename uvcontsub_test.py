@@ -1,12 +1,10 @@
 # routines useful for uvcontsub testing
 
-# assumes using in casalith
 
-from casaplotms import plotms
+
 import os
-from casatools import msmetadata as msmdtool
 
-def uvcontsubplot(origvis='',origdatacol='data',contsubvis='',contsubdatacol='data',spwlist=[],srclist=[],plotprefix=''):
+def uvcontsubplot(origvis='',origdatacol='data',contsubvis='',contsubdatacol='data',spwlist=[],srclist=[],plotprefix='',plotdir='.'):
 
     '''
     Purpose: plotting continuum subtraction results in visibility space
@@ -15,14 +13,23 @@ def uvcontsubplot(origvis='',origdatacol='data',contsubvis='',contsubdatacol='da
     ----------------------------------------------------------------------
     4/20/2022   Original Code                   A.A. Kepley
     '''
+    
+    # assumes using in casalith
+    from casaplotms import plotms
+    from casatools import msmetadata as msmdtool
+
 
     height = 600
     width = 800
 
+    
+    srclist = [str(i) for i in srclist]
+    spwlist = [str(i) for i in spwlist]
+
     for src in srclist:
         for spw in spwlist:
-
-            filename = 'uvcontsub_field'+src+'_spw'+spw+'.png'
+                
+            filename = os.path.join(plotdir,plotprefix+'uvcontsub_field'+str(src)+'_spw'+str(spw)+'.png')
 
             if os.path.exists(filename):
                 os.remove(filename)
@@ -77,7 +84,7 @@ def uvcontsubplot(origvis='',origdatacol='data',contsubvis='',contsubdatacol='da
                    plotfile=filename)
 
 
-def convert_to_uvcontsub2021(script):
+def convert_to_uvcontsub2021(script,outfile):
     '''
     convert pipeline uvcontcube command to uvcontsub2021
 
@@ -139,6 +146,8 @@ def convert_to_uvcontsub2021(script):
 
     msmd = msmdtool()
 
+    fout = open(outfile,'w')
+
     # now create uvcontsub2021 commands
     for vis in results.keys():
         outputvis = os.path.basename(vis).replace(".ms","_uvcontsub.ms")
@@ -179,9 +188,12 @@ def convert_to_uvcontsub2021(script):
         fitspwstr = fitspwstr + ']'
 
         # create command string
-        cmdstr = "uvcontsub2021(vis='"+vis+"',outputvis='"+outputvis+"',field='"+fieldselect+"',spw='"+spwselect+"',fitspw="+fitspwstr+")"
+        cmdstr = "uvcontsub2021(vis='"+vis+"',outputvis='"+outputvis+"',field='"+fieldselect+"',spw='"+spwselect+"',fitspw="+fitspwstr+")\n"
 
-        return cmdstr
+        # write to output file
+        fout.write(cmdstr)
+
+    fout.close()
 
 def setup_uvcontsub_test(benchmarkDir,testDir):
     '''
@@ -221,23 +233,155 @@ def setup_uvcontsub_test(benchmarkDir,testDir):
             benchmarkName = re.findall('\w\w\w\w\.\w.\d\d\d\d\d\.\w_\d\d\d\d_\d\d_\d\dT\d\d_\d\d_\d\d\.\d\d\d',mydir)[0]
             
             uvcontsubscript = os.path.join(benchmarkDir,mydir, benchmarkName+'_uvcontsub.py')
-            newcmd = convert_to_uvcontsub2021(uvcontsubscript)
-            
+
             outDir = os.path.join(testDir,benchmarkName)
 
             if not os.path.exists(outDir):
                 os.mkdir(outDir)
 
             outfile = os.path.join(outDir,benchmarkName+'_uvcontsub2021.py')
+            convert_to_uvcontsub2021(uvcontsubscript,outfile)
+                        
+
+def parseLog_uvcontsub(logfile):
+    ''' 
+    Parse an individual log file and return a dictionary with the data in it.
+    
+    Date        Programmer      Description of Changes
+    ----------------------------------------------------------------------
+    5/10/2022   A.A. Kepley     Original Code
+    '''
+
+    import re
+    from datetime import datetime
+    import numpy as np
+    
+    # logfile = 'casa-20220509-172008.log' # old log
+    # logfile = 'casa-20220506-170405.log' # new log
+
+    uvcontfitBeginRE = re.compile(r"Begin Task: uvcontfit")
+    uvcontfitEndRE = re.compile(r"End Task: applycal")
+    applyStartRE = re.compile(r"Begin Task: applycal")
+
+    uvcontsub2021BeginRE = re.compile(r"Begin Task: uvcontsub2021")
+    uvcontsub2021EndRE = re.compile(r"End Task: uvcontsub2021")
+
+    dateFmtRE = re.compile(r"(?P<timedate>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+
+    filein = open(logfile,'r')
+
+    results = {}
+
+    for line in filein:
+
+        # only want first one
+        if (uvcontsub2021BeginRE.search(line) or uvcontfitBeginRE.search(line)) and 'startTime' not in results.keys():
+            startTimeStr = dateFmtRE.search(line)
+            results['startTime'] = datetime.strptime(startTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+        # keep the first applycal time so I can compare restore vs. rerun
+        if (applyStartRE.search(line) and ('applyStartTime' not in results.keys())):
+            applyStartTimeStr = dateFmtRE.search(line)
+            results['applyStartTime'] = datetime.strptime(applyStartTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+
+        # only keep last end time.
+        if (uvcontsub2021EndRE.search(line) or uvcontfitEndRE.search(line)):
+            endTimeStr = dateFmtRE.search(line)
+            results['endTime'] = datetime.strptime(endTimeStr.group('timedate'),'%Y-%m-%d %H:%M:%S')
+
+
+    results['uvcontsubTime'] = results['endTime'] - results['startTime']
+
+    if 'applyStartTime' in results.keys():
+        results['applyTime'] = results['endTime'] - results['applyStartTime']
+
+    filein.close()
+
+    return results
+
+def uvcontsubTime(testDir):
+    '''
+    get timings for uvcontsub runs
+    
+    Date        Programmer              Description of Changes
+    ----------------------------------------------------------------------
+    5/10/2022   A.A. Kepley             Original Code
+
+    '''
+
+    import os
+    import glob
+    import re
+
+    if os.path.exists(testDir):
+        
+        # initialize results
+        results = {}
+
+        # get file name
+        logfile = sorted(glob.glob(os.path.join(testDir,"casa-????????-??????.log")))[0]
+
+        results = parseLog_uvcontsub(logfile)
+        
+    else:
+        print("no path found")
+        results = {}
+
+    return results
+
+def collect_uvcontsubTimings(testDir, projectList = None, excludeList = None):
+    '''
+
+    collect all the timings from various projects
+
+    '''
+
+    import glob
+
+    if os.path.exists(testDir):
+        if not projectList:
+            tests = glob.glob(os.path.join(testDir, "*.*.*.*_*"))
+        else:
+            tests = [os.path.join(testDir,project) for project in projectList]
+
+    if excludeList:
+        for project in excludeList:
+            tests.remove(project)
+
+    results = {}
+
+    for test in tests:
+        project = os.path.basename(test)
+        print(project)
+        results[project] = uvcontsubTime(test)
+
+    return results
+
+def create_table(inDict1, inDict2, label1='old',label2='new'):
+    '''
+    make an astropy table of timing data for uvcontsub
+    '''
+    
+    from astropy.table import Table
+    import numpy as np
+    
+    projectArr = np.array([])
+    time1Arr = np.array([])
+    time2Arr = np.array([])
+    ratioArr = np.array([])
+    applyArr = np.array([])
+
+    for project in inDict1.keys():
+        if project in inDict2.keys():
+            projectArr = np.append(project,projectArr)
+            time1Arr = np.append(inDict1[project]['uvcontsubTime'].seconds, time1Arr)
+            time2Arr = np.append(inDict2[project]['uvcontsubTime'].seconds,time2Arr)
+            ratioArr = np.append(inDict2[project]['uvcontsubTime'].seconds/inDict1[project]['uvcontsubTime'].seconds, ratioArr)
             
-            f = open(outfile,'w+')
-            f.write(newcmd + '\n')
-            f.close()
-            
-## How do I want the structure?
+            applyArr = np.append(inDict1[project]['applyTime'].seconds, applyArr)
 
-## current paradigm:
-## -- cycle through data directories with scripts. get script. convert. write out script to a new directory.
+    t = Table([projectArr,time1Arr, time2Arr, ratioArr,applyArr],
+              names = ('project','time_'+label1,'time_'+label2,'ratio','applytime'))
 
-
-
+    return t

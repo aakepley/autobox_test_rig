@@ -1358,7 +1358,7 @@ def flattenTimingData_serial(inDict):
 
 #----------------------------------------------------------------------
 
-def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8, stage=None):
+def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8, stage=None, flag=''):
     '''
     generate a pipeline batch script quickly to send jobs to nodes
     '''
@@ -1404,13 +1404,15 @@ def createBatchScript(testDir, casaPath, scriptname=None, mpi=False,n=8, stage=N
                 if mpi:
                     outline = "cd " +projectDir + \
                               "; export PATH="+os.path.join(casaPath, "bin") + ":${PATH}" + \
-                              "; xvfb-run -d mpicasa -n "+str(n)+" casa --nogui -c " + script +"\n"
+                              "; xvfb-run -d mpicasa -n "+str(n)+" casa --nogui " + flag + " -c " + script +"\n"
+
+
 
                 else:
 
                     outline = "cd " +projectDir + \
                               "; export PATH="+os.path.join(casaPath, "bin") + ":${PATH}" + \
-                              "; xvfb-run -d casa --nogui -c " + script +"\n"
+                              "; xvfb-run -d casa --nogui " + flag + " -c " + script +"\n"
 
                 f.write(outline)
         f.close()
@@ -2491,7 +2493,7 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                     
 # ----------------------------------------------------------------------
 
-def generatePipeScript(dataDir, outDir, scriptName='test.py',mfsParameters=None,cubeParameters=None):
+def generatePipeScript(dataDir, outDir, scriptName='test.py',mfsParameters=None,cubeParameters=None, mfs=True, cube=True):
     '''
     generate a simple imaging-only pipeline script
     '''
@@ -2509,12 +2511,13 @@ dataDir = '{0:s}'
 context = h_init()
     
 try:
-    myvis = glob.glob(os.path.join(dataDir,"*target.ms"))
+    myvis = glob.glob(os.path.join(dataDir,"*target*.ms"))
     hifa_importdata(vis=myvis,pipelinemode="automatic",dbservice=False, asimaging=True)
 '''.format(dataDir)
 
-    parameterStr = ''
 
+    parameterStr = ''
+    
     if mfsParameters:
         
         for param in mfsParameters:         
@@ -2523,20 +2526,20 @@ try:
                     parameterStr = parameterStr+','+key+'='+str(param[key])
                 else:
                     parameterStr = key+'='+str(param[key])
-
+                    
         mfsImagingStr = '''
     hif_makeimlist(specmode='mfs')
     hif_makeimages(pipelinemode="automatic",{0:s})
     hif_makeimlist(specmode='cont')
     hif_makeimages(pipelinemode="automatic",{0:s})   
-'''.format(parameterStr)
+    '''.format(parameterStr)
     else:
         mfsImagingStr = '''
     hif_makeimlist(specmode='mfs')
     hif_makeimages(pipelinemode="automatic")
     hif_makeimlist(specmode='cont')
     hif_makeimages(pipelinemode="automatic")
-'''
+    '''
 
     parameterStr=''
         
@@ -2557,9 +2560,9 @@ try:
     hifa_exportdata(pipelinemode="automatic")
 finally:
     h_save()
-'''.format(parameterStr)
+        '''.format(parameterStr)
     else:
-         cubeImagingStr = '''
+        cubeImagingStr = '''
     hif_makeimlist(specmode='cube')
     hif_makeimages(pipelinemode="automatic")
     #hif_makeimlist(specmode='repBW')
@@ -2567,13 +2570,14 @@ finally:
     hifa_exportdata(pipelinemode="automatic")
 finally:
     h_save()
-'''.format(parameterStr)
+        '''.format(parameterStr)
         
-
     fout = open(os.path.join(outDir,scriptName),'w')
     fout.write(scriptStr)
-    fout.write(mfsImagingStr)
-    fout.write(cubeImagingStr)
+    if mfs:
+        fout.write(mfsImagingStr)
+    if cube:
+        fout.write(cubeImagingStr)
     fout.close()
 
 

@@ -9,10 +9,14 @@
 # casa --nologger --log2term
 
 # creating an ia tool to use.
-from taskinit import *
+#from taskinit import *
+#ia = iatool()
+from casatools import image as iatool
 ia = iatool()
-from immath_cli import immath_cli as immath
-from imstat_cli import imstat_cli as imstat
+from casatasks import immath
+from casatasks import imstat
+#from immath_cli import immath_cli as immath
+#from imstat_cli import imstat_cli as imstat
 
 
 import os.path
@@ -112,7 +116,7 @@ def compareMask(baseMaskPath,testMaskPath,writer,label=None):
                 writer.writerow([mydir,mask,nPixMask,nPixMaskTest,nPixDiff,nPixDiffBase,nPixDiffTest, '--', nChanMaskBase, nChanMaskTest, nPixMaxMaskBase, nPixMaxMaskTest,FOVPixelsBase, FOVPixelsTest])
 
     else:
-         print "no corresponding test image: ", testMaskPath
+         print("no corresponding test image: ", testMaskPath)
          #writer.writerow([mydir,mask,nPixMask,'--','--','--','--','--'])
                                 
     # clean up image tool
@@ -176,10 +180,10 @@ def runMaskComparison(baseDir, testDir, outFile,projects=None):
                             testMaskPath = os.path.join(testProject,mask)                            
                             compareMask(baseMaskPath, testMaskPath, writer)
                     else:
-                        print "no corresponding test project: ", mydir
+                        print("no corresponding test project: ", mydir)
     
     else:
-        print "test directory doesn't exist:", mydir
+        print("test directory doesn't exist:", mydir)
 
 
 #----------------------------------------------------------------------
@@ -241,10 +245,10 @@ def runMaskComparisonPipe(baseDir, testDir, outFile,projects=None):
                             testMaskPath = os.path.join(testProject,SOUS,GOUS,MOUS,"working",mask)
                             compareMask(baseMaskPath, testMaskPath, writer, label=projectName)
                     else:
-                        print "no corresponding test project: ", mydir
+                        print("no corresponding test project: ", mydir)
     
     else:
-        print "base directory doesn't exist:", baseDir
+        print("base directory doesn't exist:", baseDir)
 
 #----------------------------------------------------------------------
 
@@ -427,7 +431,7 @@ def runCubeMaskComparison(baseDir,testDir,projects=[],exclude=[]):
                         if os.path.exists(testMaskPath):
                             nPixTestMask = getMaskPixels(testMaskPath)
                         else:
-                            print testMaskPath+" not found. Skipping comparison."
+                            print(testMaskPath+" not found. Skipping comparison.")
                             continue
 
                         #nPixFOV = getFOVPixels(basePBPath)
@@ -446,10 +450,10 @@ def runCubeMaskComparison(baseDir,testDir,projects=[],exclude=[]):
 
 
                 else:
-                    print "no corresponding test project: ", mydir
+                    print("no corresponding test project: ", mydir)
     
     else:
-        print "test directory doesn't exist:", mydir
+        print("test directory doesn't exist:", mydir)
 
 #----------------------------------------------------------------------
 
@@ -1004,10 +1008,10 @@ def runStatsComp(baseDir, testDir, outFile, projects=None):
                                              beamarea_base, beamarea_test, beamarea_pdiff])
                                             
                     else:
-                        print "no corresponding test project: ", mydir
+                        print("no corresponding test project: ", mydir)
     
     else:
-        print "test directory doesn't exist:", mydir
+        print("test directory doesn't exist:", mydir)
 
 
 def plotStatsDiff(base_perchan, test_perchan,title='test',binsize=1.0):
