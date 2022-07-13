@@ -1,6 +1,8 @@
 # routines useful for uvcontsub testing
 
-
+# assumes using in casalith
+from casaplotms import plotms
+from casatools import msmetadata as msmdtool
 
 import os
 
@@ -15,8 +17,8 @@ def uvcontsubplot(origvis='',origdatacol='data',contsubvis='',contsubdatacol='da
     '''
     
     # assumes using in casalith
-    from casaplotms import plotms
-    from casatools import msmetadata as msmdtool
+    #from casaplotms import plotms
+    #from casatools import msmetadata as msmdtool
 
 
     height = 600
@@ -94,8 +96,12 @@ def convert_to_uvcontsub2021(script,outfile):
 
     '''
 
+    msmd = msmdtool()
+
     import re
     import pdb
+    import ast
+    import numpy as np
 
     uvcontfitRE = re.compile(r"""
     uvcontfit\(vis='(?P<vis>.*?)'
@@ -129,22 +135,35 @@ def convert_to_uvcontsub2021(script,outfile):
             cmd = uvcontfitRE.search(line)            
             vis = cmd.group('vis')
             field = cmd.group('field')
+
+            # this will break if source name has a comma
+            if len(field.split(',')) > 1:
+                fieldno = ast.literal_eval(field) # convert string to array               
+                msmd.open(vis)
+                tmp = msmd.namesforfields(fieldno) # get name for field
+                msmd.close()
+                field = np.unique(tmp)[0] # only get unique
+
+
             if vis not in results.keys():
                 results[vis] = {}
             if field not in results[vis].keys():
                 results[vis][field] = {}
             results[vis][field]['fitspw'] = cmd.group('fitspw')
             results[vis][field]['fitorder'] = cmd.group('fitorder')
+        
+        
 
         # then all the applycal commands
         if applycalRE.search(line):
             cmd2 = applycalRE.search(line)
             vis = cmd2.group('vis')
             field = cmd2.group('field')
+
             spw = cmd2.group('spw')
             results[vis][field]['spw'] = spw
 
-    msmd = msmdtool()
+
 
     fout = open(outfile,'w')
 
@@ -166,7 +185,7 @@ def convert_to_uvcontsub2021(script,outfile):
                 fieldstr = str(fieldid[0])
             if len(fieldid) > 1:
                 tmp = [str(i) for i in fieldid]
-                fieldstr = ','.join(fieldstr)
+                fieldstr = ','.join(tmp)
             
             if not fieldselect:
                 fieldselect = fieldstr
