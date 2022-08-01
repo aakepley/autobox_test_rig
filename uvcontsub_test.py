@@ -86,7 +86,7 @@ def uvcontsubplot(origvis='',origdatacol='data',contsubvis='',contsubdatacol='da
                    plotfile=filename)
 
 
-def convert_to_uvcontsub2021(script,outfile):
+def convert_to_uvcontsub2021(script,outfile,dictformat=False):
     '''
     convert pipeline uvcontcube command to uvcontsub2021
 
@@ -175,6 +175,7 @@ def convert_to_uvcontsub2021(script,outfile):
         spwselect = ''
         fieldselect = ''
         fitspwstr = ''
+        fitspecstr = ''
         for field in results[vis].keys():
             
             msmd.open(vis)
@@ -196,25 +197,54 @@ def convert_to_uvcontsub2021(script,outfile):
             # for all fields, but that's an assumption.
             if not spwselect:
                 spwselect = results[vis][field]['spw']
-            
+
             if not fitspwstr:
                 fitspwstr = '['
             else:
                 fitspwstr = fitspwstr + ','
+
             fitspwstr = fitspwstr + "['"+fieldstr + "','" + results[vis][field]['fitspw']+"']"
+
+            if not fitspecstr:
+                fitspecstr = "{"
+            else:
+                fitspecstr = fitspecstr + ','
+            fitspecstr = fitspecstr + "'" + fieldstr + "' : {" 
             
+            fitspwList = results[vis][field]['fitspw'].split(",")
+
+            punct = ''
+            for fitspw in fitspwList:
+                myspw, mychan = fitspw.split(':')
+                fitspecstr =  fitspecstr + punct + "'" + myspw + "': {'chan':'" + mychan + "', 'fitorder':" +   results[vis][field]['fitorder'] + "}"
+                punct=', '
+            
+            fitspecstr = fitspecstr + "}" # close the dictionary for the field
+
         # close fitspwstr
         fitspwstr = fitspwstr + ']'
 
-        # create command string
-        cmdstr = "uvcontsub2021(vis='"+vis+"',outputvis='"+outputvis+"',field='"+fieldselect+"',spw='"+spwselect+"',fitspw="+fitspwstr+")\n"
+        # close fitspecstr
+        fitspecstr = fitspecstr + '}'
+        
+        print(fitspecstr)
+
+        if dictformat:
+            # create command string
+            cmdstr = "uvcontsub2021(vis='"+vis+"',outputvis='"+outputvis+"',field='"+fieldselect+"',spw='"+spwselect+"',fitspec="+fitspecstr+")\n"
+
+        else:
+            # create command string
+            cmdstr = "uvcontsub2021(vis='"+vis+"',outputvis='"+outputvis+"',field='"+fieldselect+"',spw='"+spwselect+"',fitspw="+fitspwstr+", fitorder=" + results[vis][field]['fitorder'] + ")\n"
 
         # write to output file
         fout.write(cmdstr)
 
+
+
     fout.close()
 
-def setup_uvcontsub_test(benchmarkDir,testDir):
+def setup_uvcontsub_test(benchmarkDir,testDir,dictformat=False):
     '''
 
     Automatically populate a test directory with directories for
@@ -259,7 +289,7 @@ def setup_uvcontsub_test(benchmarkDir,testDir):
                 os.mkdir(outDir)
 
             outfile = os.path.join(outDir,benchmarkName+'_uvcontsub2021.py')
-            convert_to_uvcontsub2021(uvcontsubscript,outfile)
+            convert_to_uvcontsub2021(uvcontsubscript,outfile,dictformat=dictformat)
                         
 
 def parseLog_uvcontsub(logfile):
