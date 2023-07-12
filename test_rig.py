@@ -43,7 +43,7 @@ def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False,
         targetFiles = glob.glob(os.path.join(dataDir,'*target.ms'))
         # fix for new PL2022 targets.ms file
         if len(targetFiles) == 0:
-            targetFiles = glob.glob(os.path.join(dataDir,'*targets.ms'))
+            targetFiles = glob.glob(os.path.join(dataDir,'*targets*.ms'))
         
         benchmarkName = re.findall('\w\w\w\w\.\w.\d\d\d\d\d\.\w_\d\d\d\d_\d\d_\d\dT\d\d_\d\d_\d\d\.\d\d\d',dataDir)[0]
       
