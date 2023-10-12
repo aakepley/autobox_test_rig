@@ -1,4 +1,4 @@
-#import ipdb
+import ipdb
 
 def extractDataFromPipeline(pipelineDir,outDir,stages=[29,31,33],copyCont=False, contsubstages=None):
     '''
@@ -1993,8 +1993,10 @@ def parseLog_newlog_simple(logfile,serial=False):
     commonbeamRE = re.compile("restoringbeam='common', .*, parallel=False")
 
     gridderRE = re.compile(r"gridder=\'(?P<gridder>.*?)\'")
-
+    
+    # needed earlier to avoid the Run (Last) Major Cycle message, which has since disappeared.
     majorCycleRE = re.compile(r"Major Cycle (?P<nmajor>\d*)")
+    #majorCycleRE = re.compile(r"Run Major Cycle (?P<nmajor>\d*)") # should be okay, but not backwards compatible.
 
     tcleanEndRE = re.compile(r"End Task: tclean")
     
@@ -2002,6 +2004,10 @@ def parseLog_newlog_simple(logfile,serial=False):
     antennaRE = re.compile(r"antenna=\[\'(?P<antennalist>.*?)\'")    
 
     chanchunksRE = re.compile(r"INFO\tSynthesisImagerVi2::appendToMapperList\(ftm\)\+\tSetting chanchunks to (?P<chanchunks>.*?)\n")
+
+    sidelobeLevelRE = re.compile(r"SidelobeLevel = (?P<sidelobeLevel>.*)")
+    cycleThresholdRE = re.compile(r"\'cyclethreshold\': (?P<cyclethreshold>.*?),")
+
 
     nrowsRE = re.compile(r"SynthesisImagerVi2::selectData 	  NRows selected : (?P<nrows>.*?)\n")
 
@@ -2083,10 +2089,17 @@ def parseLog_newlog_simple(logfile,serial=False):
 
         if majorCycleRE.search(line):
             nmajor = majorCycleRE.search(line).group('nmajor')
-
+            if bool(nmajor):
+                nmajor = int(nmajor)
+                
         if stoppingRE.search(line):
             results['stopcode'] = stoppingRE.search(line).group('stopcode')
 
+        if sidelobeLevelRE.search(line):
+            results['sidelobeLevel'] = float(sidelobeLevelRE.search(line).group('sidelobeLevel'))
+
+        if cycleThresholdRE.search(line):
+            results['cyclethreshold'] = float(cycleThresholdRE.search(line).group('cyclethreshold'))
 
         # capture the end of the clean
         if tcleanEndRE.search(line):
@@ -2126,7 +2139,7 @@ def parseLog_newlog_simple(logfile,serial=False):
             else:
                 results['nrows'] = np.sum(nrows[0:int(len(nrows)/2.0)])
 
-            results['nmajor'] = nmajor
+            results['nmajordone'] = nmajor
 
             allresults[imagename] = results
 
@@ -2259,8 +2272,8 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
     nrowsArr = np.array([])
 
     if serial:
-        cyclethreshold1Arr = ma.array([])
-        cyclethreshold1MaskArr  = np.array([])
+        #cyclethreshold1Arr = ma.array([])
+        #cyclethreshold1MaskArr  = np.array([])
         iterdone1Arr = ma.array([])
         iterdone1MaskArr = np.array([])
         nmajordone1Arr = ma.array([])
@@ -2268,14 +2281,20 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
         stopcode1Arr = ma.array([])
         stopcode1MaskArr = np.array([])
         
-        cyclethreshold2Arr = ma.array([])
-        cyclethreshold2MaskArr  = np.array([])
+        #cyclethreshold2Arr = ma.array([])
+        #cyclethreshold2MaskArr  = np.array([])
         iterdone2Arr = ma.array([])
         iterdone2MaskArr = np.array([])
         nmajordone2Arr = ma.array([])
         nmajordone2MaskArr = np.array([])
         stopcode2Arr = ma.array([])
         stopcode2MaskArr = np.array([])
+
+        sidelobeLevel1Arr = ma.array([])
+        sidelobeLevel1MaskArr = np.array([])
+        sidelobeLevel2Arr = ma.array([])
+        sidelobeLevel2MaskArr = np.array([])
+
 
     for project in inDict1.keys():
         if project in inDict2.keys():
@@ -2322,12 +2341,15 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
 
                     if serial:
                         if ((image in inDict1[project].keys()) and 
-                                ('cyclethreshold' in inDict1[project][image].keys())):
-                            cyclethreshold1Arr = np.append(inDict1[project][image]['cyclethreshold'], cyclethreshold1Arr)
-                            cyclethreshold1MaskArr = np.append(False, cyclethreshold1MaskArr)
+                                ('sidelobeLevel' in inDict1[project][image].keys())):
+                            #cyclethreshold1Arr = np.append(inDict1[project][image]['cyclethreshold'], cyclethreshold1Arr)
+                            #cyclethreshold1MaskArr = np.append(False, cyclethreshold1MaskArr)
 
-                            iterdone1Arr = np.append(inDict1[project][image]['iterdone'], iterdone1Arr)
-                            iterdone1MaskArr = np.append(False, iterdone1MaskArr)
+                            sidelobeLevel1Arr = np.append(inDict1[project][image]['sidelobeLevel'],sidelobeLevel1Arr)
+                            sidelobeLevel1MaskArr = np.append(False,sidelobeLevel1MaskArr)
+
+                            #iterdone1Arr = np.append(inDict1[project][image]['iterdone'], iterdone1Arr)
+                            #iterdone1MaskArr = np.append(False, iterdone1MaskArr)
 
                             nmajordone1Arr = np.append(inDict1[project][image]['nmajordone'], nmajordone1Arr)
                             nmajordone1MaskArr = np.append(False, nmajordone1MaskArr)
@@ -2336,11 +2358,15 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                             stopcode1MaskArr = np.append(False, stopcode1MaskArr)
 
                         else:
-                            cyclethreshold1Arr = np.append(99, cyclethreshold1Arr)
-                            cyclethreshold1MaskArr = np.append(True, cyclethreshold1MaskArr)
+                            #cyclethreshold1Arr = np.append(99, cyclethreshold1Arr)
+                            #cyclethreshold1MaskArr = np.append(True, cyclethreshold1MaskArr)
 
-                            iterdone1Arr = np.append(99, iterdone1Arr)
-                            iterdone1MaskArr = np.append(True, iterdone1MaskArr)
+
+                            sidelobeLevel1Arr = np.append(99,sidelobeLevel1Arr)
+                            sidelobeLevel1MaskArr = np.append(True,sidelobeLevel1MaskArr)
+
+                            #iterdone1Arr = np.append(99, iterdone1Arr)
+                            #iterdone1MaskArr = np.append(True, iterdone1MaskArr)
 
                             nmajordone1Arr = np.append(99, nmajordone1Arr)
                             nmajordone1MaskArr = np.append(True, nmajordone1MaskArr)
@@ -2351,12 +2377,16 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
 
                             # mask
                         if ((image in inDict2[project].keys()) and 
-                                ('cyclethreshold' in inDict2[project][image].keys())):
-                            cyclethreshold2Arr = np.append(inDict2[project][image]['cyclethreshold'], cyclethreshold2Arr)
-                            cyclethreshold2MaskArr = np.append(False, cyclethreshold2MaskArr)
+                                ('sidelobeLevel' in inDict2[project][image].keys())):
+                            #cyclethreshold2Arr = np.append(inDict2[project][image]['cyclethreshold'], cyclethreshold2Arr)
+                            #cyclethreshold2MaskArr = np.append(False, cyclethreshold2MaskArr)
 
-                            iterdone2Arr = np.append(inDict2[project][image]['iterdone'], iterdone2Arr)
-                            iterdone2MaskArr = np.append(False, iterdone2MaskArr)
+                            sidelobeLevel2Arr = np.append(inDict2[project][image]['sidelobeLevel'],sidelobeLevel2Arr)
+                            sidelobeLevel2MaskArr = np.append(False,sidelobeLevel2MaskArr)
+
+
+                            #iterdone2Arr = np.append(inDict2[project][image]['iterdone'], iterdone2Arr)
+                            #iterdone2MaskArr = np.append(False, iterdone2MaskArr)
 
                             nmajordone2Arr = np.append(inDict2[project][image]['nmajordone'], nmajordone2Arr)
                             nmajordone2MaskArr = np.append(False, nmajordone2MaskArr)
@@ -2367,11 +2397,14 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
                         else:
                             #mask
 
-                            cyclethreshold2Arr = np.append(99, cyclethreshold2Arr)
-                            cyclethreshold2MaskArr = np.append(True, cyclethreshold2MaskArr)
+                            #cyclethreshold2Arr = np.append(99, cyclethreshold2Arr)
+                            #cyclethreshold2MaskArr = np.append(True, cyclethreshold2MaskArr)
 
-                            iterdone2Arr = np.append(99, iterdone2Arr)
-                            iterdone2MaskArr = np.append(True, iterdone2MaskArr)
+                            sidelobeLevel2Arr = np.append(99,sidelobeLevel2Arr)
+                            sidelobeLevel2MaskArr = np.append(True,sidelobeLevel2MaskArr)
+
+                            #iterdone2Arr = np.append(99, iterdone2Arr)
+                            #iterdone2MaskArr = np.append(True, iterdone2MaskArr)
 
                             nmajordone2Arr = np.append(99, nmajordone2Arr)
                             nmajordone2MaskArr = np.append(True, nmajordone2MaskArr)
@@ -2384,15 +2417,21 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
         pdiffArr.mask = pdiffMaskArr
 
         if serial:
-            cyclethreshold1Arr.mask = cyclethreshold1MaskArr
-            iterdone1Arr.mask = iterdone1MaskArr
+            #cyclethreshold1Arr.mask = cyclethreshold1MaskArr
+            sidelobeLevel1Arr.mask = sidelobeLevel1MaskArr
+            #iterdone1Arr.mask = iterdone1MaskArr
             nmajordone1Arr.mask = nmajordone1MaskArr
             stopcode1Arr.mask = stopcode1MaskArr
             
-            cyclethreshold2Arr.mask = cyclethreshold2MaskArr
-            iterdone2Arr.mask = iterdone2MaskArr
+            #cyclethreshold2Arr.mask = cyclethreshold2MaskArr
+            sidelobeLevel2Arr.mask = sidelobeLevel2MaskArr
+            #iterdone2Arr.mask = iterdone2MaskArr
             nmajordone2Arr.mask = nmajordone2MaskArr
             stopcode2Arr.mask = stopcode2MaskArr
+
+
+
+    #ipdb.set_trace()
 
     t = Table([projectArr,
                imagenameArr,
@@ -2414,13 +2453,15 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
 
 
     if serial:
-        t.add_column(cyclethreshold1Arr,name='cyclethreshold_'+label1)
-        t.add_column(iterdone1Arr,name='iterdone_'+label1)
+        #t.add_column(cyclethreshold1Arr,name='cyclethreshold_'+label1)
+        #t.add_column(iterdone1Arr,name='iterdone_'+label1)
+        t.add_column(sidelobeLevel1Arr,name='sidelobeLevel_'+label1)
         t.add_column(nmajordone1Arr,name='nmajordone_'+label1)
         t.add_column(stopcode1Arr,name='stopcode_'+label1)
 
-        t.add_column(cyclethreshold2Arr,name='cyclethreshold_'+label2)
-        t.add_column(iterdone2Arr,name='iterdone_'+label2)
+        #t.add_column(cyclethreshold2Arr,name='cyclethreshold_'+label2)
+        #t.add_column(iterdone2Arr,name='iterdone_'+label2)
+        t.add_column(sidelobeLevel2Arr,name='sidelobeLevel_'+label2)
         t.add_column(nmajordone2Arr,name='nmajordone_'+label2)
         t.add_column(stopcode2Arr,name='stopcode_'+label2)
     
@@ -2477,11 +2518,11 @@ def makeAstropyTimingTable(inDict1,inDict2,label1='casa610',label2='build84',ser
             totalTime_pdiff[idx_iter0] = 100.0* ( totalTime2[idx_iter0]-totalTime1[idx_iter0])/totalTime1[idx_iter0]
 
             # copy info from iter1 to iter0
-            if t[idx_iter1]:
-                ## NEED TO DO LABEL THEN IDX TO GET CORRECT COPY
-                t['nmajordone_'+label2][idx_iter0] = t['nmajordone_'+label2][idx_iter1]
-            else:
-                t['nmajordone_'+label2][idx_iter0] = 0
+            #if t[idx_iter1]:
+            #    ## NEED TO DO LABEL THEN IDX TO GET CORRECT COPY
+            #    t['nmajordone_'+label2][idx_iter0] = t['nmajordone_'+label2][idx_iter1]
+            #else:
+            #    t['nmajordone_'+label2][idx_iter0] = 0
             
         else:
             continue
